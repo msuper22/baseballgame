@@ -33,7 +33,7 @@ export function renderDiamond(container, state) {
 
   function renderRunner(x, y, name, labelX, labelY) {
     if (!name) return '';
-    const pillW = getTextWidth(name, 9) + 18;
+    const pillW = getTextWidth(name, 11) + 22;
     return `
       <g class="runner-group">
         <circle cx="${x}" cy="${y}" r="20" fill="${teamColor}" opacity="0.2">
@@ -45,9 +45,9 @@ export function renderDiamond(container, state) {
         <text x="${x}" y="${y + 4}" text-anchor="middle" font-size="9" font-weight="800" fill="${teamColor}">
           ${getInitials(name)}
         </text>
-        <rect x="${labelX - pillW/2}" y="${labelY - 12}" width="${pillW}" height="24" rx="12"
+        <rect x="${labelX - pillW/2}" y="${labelY - 14}" width="${pillW}" height="28" rx="14"
               fill="${teamColor}" opacity="0.92"/>
-        <text x="${labelX}" y="${labelY + 4}" text-anchor="middle" font-size="15" font-weight="700" fill="white" class="runner-label">
+        <text x="${labelX}" y="${labelY + 6}" text-anchor="middle" font-size="19" font-weight="700" fill="white" class="runner-label">
           ${name}
         </text>
       </g>`;
