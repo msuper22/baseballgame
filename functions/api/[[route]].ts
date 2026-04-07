@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { handle } from 'hono/cloudflare-pages';
 import { Env } from '../types';
 import { authRoutes } from '../routes/auth';
 import { teamRoutes } from '../routes/teams';
@@ -25,4 +26,4 @@ app.route('/series', seriesRoutes);
 app.route('/at-bats', atBatRoutes);
 app.route('/stats', statsRoutes);
 
-export const onRequest = app.fetch;
+export const onRequest = handle(app);
