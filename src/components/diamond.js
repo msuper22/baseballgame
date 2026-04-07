@@ -42,12 +42,12 @@ export function renderDiamond(container, state) {
         </circle>
         <circle cx="${x}" cy="${y}" r="14" fill="${teamColor}" filter="url(#${glowId})" opacity="0.9"/>
         <circle cx="${x}" cy="${y}" r="9" fill="white" opacity="0.95"/>
-        <text x="${x}" y="${y + 4}" text-anchor="middle" font-size="9" font-weight="800" fill="${teamColor}">
+        <text x="${x}" y="${y + 4}" text-anchor="middle" font-size="10" font-weight="800" fill="${teamColor}" font-family="Arial, Helvetica, sans-serif">
           ${getInitials(name)}
         </text>
         <rect x="${labelX - pillW/2}" y="${labelY - 14}" width="${pillW}" height="28" rx="14"
               fill="${teamColor}" opacity="0.92"/>
-        <text x="${labelX}" y="${labelY + 6}" text-anchor="middle" font-size="19" font-weight="700" fill="white" class="runner-label">
+        <text x="${labelX}" y="${labelY + 6}" text-anchor="middle" font-size="19" font-weight="800" fill="white" font-family="Arial, Helvetica, sans-serif" class="runner-label">
           ${name}
         </text>
       </g>`;
