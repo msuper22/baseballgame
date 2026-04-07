@@ -550,8 +550,7 @@ ol.rules-list li::before {
 }
 .rules-table-wrapper { overflow-x: auto; margin: 0.5rem 0; }
 .rules-table-wrapper .stats-table tr:hover,
-.rules-table-wrapper .stats-table tr:nth-child(even):hover,
-.rules-table-wrapper .stats-table tr:nth-child(even) { background: transparent; cursor: default; }
+.rules-table-wrapper .stats-table tr:nth-child(even) { background: transparent !important; cursor: default; }
 
 /* === Page Transitions === */
 #app {
