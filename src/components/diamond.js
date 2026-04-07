@@ -11,6 +11,7 @@ export function renderDiamond(container, state) {
   const second = state.second_base_name || null;
   const third = state.third_base_name || null;
 
+  const isLight = document.documentElement.classList.contains('light');
   const teamColor = getTeamColor(state.team_id);
   const teamColorLight = teamColor + '40';
   const glowId = `glow-${state.team_id || 0}`;
@@ -51,30 +52,30 @@ export function renderDiamond(container, state) {
 
           <!-- Grass gradient -->
           <radialGradient id="${grassId}" cx="50%" cy="45%" r="55%">
-            <stop offset="0%" stop-color="#3a9e5c"/>
-            <stop offset="60%" stop-color="#2d8a4e"/>
-            <stop offset="100%" stop-color="#1e6b3a"/>
+            <stop offset="0%" stop-color="${isLight ? '#66bb6a' : '#3a9e5c'}"/>
+            <stop offset="60%" stop-color="${isLight ? '#4caf50' : '#2d8a4e'}"/>
+            <stop offset="100%" stop-color="${isLight ? '#388e3c' : '#1e6b3a'}"/>
           </radialGradient>
 
           <!-- Dirt gradient -->
           <radialGradient id="${dirtId}" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#d4a84b"/>
-            <stop offset="100%" stop-color="#b8913d"/>
+            <stop offset="0%" stop-color="${isLight ? '#e6c86a' : '#d4a84b'}"/>
+            <stop offset="100%" stop-color="${isLight ? '#d4b04a' : '#b8913d'}"/>
           </radialGradient>
 
           <!-- Outfield wall pattern -->
           <linearGradient id="wall-${state.team_id || 0}" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#1a3a1a"/>
-            <stop offset="100%" stop-color="#0d2a0d"/>
+            <stop offset="0%" stop-color="${isLight ? '#2e7d32' : '#1a3a1a'}"/>
+            <stop offset="100%" stop-color="${isLight ? '#1b5e20' : '#0d2a0d'}"/>
           </linearGradient>
         </defs>
 
         <!-- Stadium background -->
-        <rect x="0" y="0" width="340" height="320" fill="#0a1a10" rx="12"/>
+        <rect x="0" y="0" width="340" height="320" fill="${isLight ? '#c8e6c9' : '#0a1a10'}" rx="12"/>
 
         <!-- Outfield wall -->
         <path d="M 170 15 Q 320 50 310 195 L 280 215 Q 170 240 60 215 L 30 195 Q 20 50 170 15 Z"
-              fill="url(#wall-${state.team_id || 0})" stroke="#2a5a2a" stroke-width="2"/>
+              fill="url(#wall-${state.team_id || 0})" stroke="${isLight ? '#4caf50' : '#2a5a2a'}" stroke-width="2"/>
 
         <!-- Outfield grass -->
         <path d="M 170 28 Q 305 58 298 190 L 270 208 Q 170 230 70 208 L 42 190 Q 35 58 170 28 Z"
@@ -127,10 +128,10 @@ export function renderDiamond(container, state) {
               fill="${third ? teamColor : 'white'}" stroke="${third ? 'white' : '#999'}" stroke-width="${third ? 2 : 1}"/>
 
         <!-- Base labels when empty -->
-        ${!first ? `<text x="270" y="200" font-size="9" fill="#aaa" text-anchor="middle" opacity="0.6">1B</text>` : ''}
-        ${!second ? `<text x="170" y="115" font-size="9" fill="#aaa" text-anchor="middle" opacity="0.6">2B</text>` : ''}
-        ${!third ? `<text x="70" y="200" font-size="9" fill="#aaa" text-anchor="middle" opacity="0.6">3B</text>` : ''}
-        <text x="170" y="305" font-size="9" fill="#aaa" text-anchor="middle" opacity="0.6">HOME</text>
+        ${!first ? `<text x="270" y="200" font-size="9" fill="${isLight ? '#555' : '#aaa'}" text-anchor="middle" opacity="0.6">1B</text>` : ''}
+        ${!second ? `<text x="170" y="115" font-size="9" fill="${isLight ? '#555' : '#aaa'}" text-anchor="middle" opacity="0.6">2B</text>` : ''}
+        ${!third ? `<text x="70" y="200" font-size="9" fill="${isLight ? '#555' : '#aaa'}" text-anchor="middle" opacity="0.6">3B</text>` : ''}
+        <text x="170" y="305" font-size="9" fill="${isLight ? '#555' : '#aaa'}" text-anchor="middle" opacity="0.6">HOME</text>
 
         <!-- Runners -->
         ${renderRunner(255, 180, first, 290, 170, 'middle')}
@@ -138,10 +139,10 @@ export function renderDiamond(container, state) {
         ${renderRunner(85, 180, third, 50, 170, 'middle')}
 
         <!-- Stadium lights effect (corner dots) -->
-        <circle cx="30" cy="20" r="3" fill="white" opacity="0.15"/>
-        <circle cx="310" cy="20" r="3" fill="white" opacity="0.15"/>
-        <circle cx="20" cy="180" r="2" fill="white" opacity="0.1"/>
-        <circle cx="320" cy="180" r="2" fill="white" opacity="0.1"/>
+        <circle cx="30" cy="20" r="3" fill="${isLight ? '#fff' : 'white'}" opacity="${isLight ? '0.5' : '0.15'}"/>
+        <circle cx="310" cy="20" r="3" fill="${isLight ? '#fff' : 'white'}" opacity="${isLight ? '0.5' : '0.15'}"/>
+        <circle cx="20" cy="180" r="2" fill="${isLight ? '#fff' : 'white'}" opacity="${isLight ? '0.4' : '0.1'}"/>
+        <circle cx="320" cy="180" r="2" fill="${isLight ? '#fff' : 'white'}" opacity="${isLight ? '0.4' : '0.1'}"/>
       </svg>
 
       <div class="diamond-stats">

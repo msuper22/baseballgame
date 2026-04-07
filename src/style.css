@@ -246,6 +246,11 @@ h3 { font-size: 0.8rem; }
   position: relative;
   overflow: hidden;
 }
+html.light .diamond-card {
+  background: linear-gradient(145deg, #e8f5e9, #f1f8e9, #e0f2f1);
+  border-color: #a5d6a7;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.5);
+}
 /* CRT scanline overlay */
 .diamond-card::after {
   content: '';
@@ -276,8 +281,10 @@ h3 { font-size: 0.8rem; }
   display: flex; justify-content: center; gap: 0; margin-top: 1.25rem;
   padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,0.06);
 }
+html.light .diamond-stats { border-top-color: rgba(0,0,0,0.1); }
 .stat { text-align: center; flex: 1; }
 .stat-divider { border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08); }
+html.light .stat-divider { border-left-color: rgba(0,0,0,0.1); border-right-color: rgba(0,0,0,0.1); }
 .stat-value {
   display: block;
   font-family: 'Press Start 2P', cursive;
