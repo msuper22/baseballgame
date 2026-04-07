@@ -549,6 +549,7 @@ ol.rules-list li::before {
   top: 0.55rem;
 }
 .rules-table-wrapper { overflow-x: auto; margin: 0.5rem 0; }
+.rules-table-wrapper .stats-table tr:hover { background: none; }
 
 /* === Page Transitions === */
 #app {
