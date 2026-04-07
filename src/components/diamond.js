@@ -59,7 +59,7 @@ export function renderDiamond(container, state) {
             <feComposite in="SourceGraphic" in2="blur" operator="over"/>
           </filter>
           <clipPath id="field-clip-${state.team_id || 0}">
-            <path d="M 200 10 Q 390 60 370 230 L 340 260 Q 200 310 60 260 L 30 230 Q 10 60 200 10 Z"/>
+            <path d="M 200 10 Q 390 60 370 250 L 310 320 Q 200 370 90 320 L 30 250 Q 10 60 200 10 Z"/>
           </clipPath>
         </defs>
 
@@ -67,19 +67,19 @@ export function renderDiamond(container, state) {
         <rect x="0" y="0" width="400" height="380" fill="${bg}" rx="12"/>
 
         <!-- Outfield wall -->
-        <path d="M 200 10 Q 390 60 370 230 L 340 260 Q 200 310 60 260 L 30 230 Q 10 60 200 10 Z"
+        <path d="M 200 10 Q 390 60 370 250 L 310 320 Q 200 370 90 320 L 30 250 Q 10 60 200 10 Z"
               fill="${wallColor}" stroke="${wallStroke}" stroke-width="3"/>
 
-        <!-- Outfield grass -->
-        <path d="M 200 22 Q 378 68 360 225 L 332 252 Q 200 298 68 252 L 40 225 Q 22 68 200 22 Z"
+        <!-- Outfield grass - extends below home plate -->
+        <path d="M 200 22 Q 378 68 360 245 L 302 312 Q 200 358 98 312 L 40 245 Q 22 68 200 22 Z"
               fill="${grassDark}"/>
 
         <!-- Mowing stripes -->
         <g clip-path="url(#field-clip-${state.team_id || 0})" opacity="0.1">
-          <line x1="120" y1="20" x2="120" y2="300" stroke="${grassLight}" stroke-width="14"/>
-          <line x1="160" y1="20" x2="160" y2="300" stroke="${grassLight}" stroke-width="14"/>
-          <line x1="240" y1="20" x2="240" y2="300" stroke="${grassLight}" stroke-width="14"/>
-          <line x1="280" y1="20" x2="280" y2="300" stroke="${grassLight}" stroke-width="14"/>
+          <line x1="120" y1="20" x2="120" y2="360" stroke="${grassLight}" stroke-width="14"/>
+          <line x1="160" y1="20" x2="160" y2="360" stroke="${grassLight}" stroke-width="14"/>
+          <line x1="240" y1="20" x2="240" y2="360" stroke="${grassLight}" stroke-width="14"/>
+          <line x1="280" y1="20" x2="280" y2="360" stroke="${grassLight}" stroke-width="14"/>
         </g>
 
         <!-- Infield dirt - large arc -->
