@@ -32,6 +32,14 @@ atBatRoutes.post('/', authRequired, async (c) => {
   if (!series) return c.json({ error: 'No active series' }, 400);
   if (series.is_locked) return c.json({ error: 'This series is locked. No new events can be logged.' }, 403);
 
+  // Check for duplicate lead ID (non-admins only)
+  if (description && user.role !== 'admin') {
+    const dupe = await c.env.DB.prepare(
+      'SELECT id FROM at_bats WHERE description = ? AND series_id = ?'
+    ).bind(description, series.id).first();
+    if (dupe) return c.json({ error: 'This Lead ID has already been used in the current series' }, 400);
+  }
+
   // Get player's team
   const player = await c.env.DB.prepare(
     'SELECT id, team_id, display_name FROM players WHERE id = ? AND is_active = 1'
