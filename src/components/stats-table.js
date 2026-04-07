@@ -2,7 +2,7 @@
  * Renders a sortable stats table.
  * @param {HTMLElement} container
  * @param {object[]} rows - Array of row data
- * @param {object[]} columns - [{key, label, sortable?}]
+ * @param {object[]} columns - [{key, label, sortable?, link?(row)}]
  * @param {string} defaultSort - default sort key
  */
 export function renderStatsTable(container, rows, columns, defaultSort) {
@@ -35,7 +35,14 @@ export function renderStatsTable(container, rows, columns, defaultSort) {
             ${sorted.map((row, i) => `
               <tr>
                 <td>${i + 1}</td>
-                ${columns.map(col => `<td>${row[col.key] ?? 0}</td>`).join('')}
+                ${columns.map(col => {
+                  const val = row[col.key] ?? 0;
+                  if (col.link) {
+                    const href = col.link(row);
+                    return `<td><a href="${href}" class="table-link">${val}</a></td>`;
+                  }
+                  return `<td>${val}</td>`;
+                }).join('')}
               </tr>
             `).join('')}
           </tbody>

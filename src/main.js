@@ -10,6 +10,7 @@ import { adminPage } from './pages/admin.js';
 import { historyPage } from './pages/history.js';
 import { seriesDetailPage } from './pages/series-detail.js';
 import { rulesPage } from './pages/rules.js';
+import { playerPage } from './pages/player.js';
 import { initTheme } from './theme.js';
 import './style.css';
 
@@ -21,6 +22,7 @@ route('/', dashboardPage);
 route('/login', loginPage);
 route('/register', registerPage);
 route('/team/:id', teamPage);
+route('/player/:id', playerPage);
 route('/leaderboard', leaderboardPage);
 route('/history', historyPage);
 route('/rules', rulesPage);

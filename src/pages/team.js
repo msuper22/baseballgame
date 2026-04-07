@@ -31,7 +31,7 @@ export async function teamPage(app, params) {
       document.getElementById('roster-table'),
       playersRes.players,
       [
-        { key: 'display_name', label: 'Player', sortable: true },
+        { key: 'display_name', label: 'Player', sortable: true, link: (row) => `#/player/${row.id}` },
         { key: 'total_at_bats', label: 'AB', sortable: true },
         { key: 'total_bases', label: 'TB', sortable: true },
         { key: 'runs_batted_in', label: 'RBI', sortable: true },

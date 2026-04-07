@@ -55,7 +55,7 @@ export async function leaderboardPage(app) {
           document.getElementById('player-table'),
           res.players,
           [
-            { key: 'display_name', label: 'Player', sortable: true },
+            { key: 'display_name', label: 'Player', sortable: true, link: (row) => `#/player/${row.id}` },
             { key: 'team_name', label: 'Team', sortable: true },
             { key: 'total_at_bats', label: 'AB', sortable: true },
             { key: 'total_bases', label: 'TB', sortable: true },

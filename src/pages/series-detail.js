@@ -108,7 +108,7 @@ async function loadSeriesTab(tabName, seriesId) {
         document.getElementById('series-player-table'),
         res.players,
         [
-          { key: 'display_name', label: 'Player', sortable: true },
+          { key: 'display_name', label: 'Player', sortable: true, link: (row) => `#/player/${row.id}` },
           { key: 'team_name', label: 'Team', sortable: true },
           { key: 'total_at_bats', label: 'AB', sortable: true },
           { key: 'total_bases', label: 'TB', sortable: true },
@@ -131,7 +131,7 @@ async function loadSeriesTab(tabName, seriesId) {
           ${res.at_bats.map(ab => `
             <div class="play-item">
               <span class="play-type play-${ab.hit_type}">${formatHitType(ab.hit_type)}</span>
-              <span class="play-player">${ab.player_name}</span>
+              <a href="#/player/${ab.player_id}" class="play-player table-link">${ab.player_name}</a>
               <span class="play-team">${ab.team_name}</span>
               ${ab.description ? `<span class="play-lead">ID: ${ab.description}</span>` : ''}
               ${ab.runs_scored > 0 ? `<span class="play-runs">+${ab.runs_scored} run${ab.runs_scored > 1 ? 's' : ''}</span>` : ''}

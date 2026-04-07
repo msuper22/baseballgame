@@ -98,6 +98,53 @@ statsRoutes.get('/leaderboard/teams', authRequired, async (c) => {
   return c.json({ teams: teams.results });
 });
 
+// Individual player profile stats
+statsRoutes.get('/player/:id', authRequired, async (c) => {
+  const playerId = c.req.param('id');
+
+  // Player info
+  const player = await c.env.DB.prepare(`
+    SELECT p.id, p.display_name, p.username, p.role, p.created_at,
+      t.name as team_name, t.id as team_id
+    FROM players p
+    LEFT JOIN teams t ON p.team_id = t.id
+    WHERE p.id = ?
+  `).bind(playerId).first();
+  if (!player) return c.json({ error: 'Player not found' }, 404);
+
+  // Career totals (all series combined)
+  const career = await c.env.DB.prepare(`
+    SELECT
+      COUNT(id) as total_at_bats,
+      COALESCE(SUM(bases), 0) as total_bases,
+      COALESCE(SUM(runs_scored), 0) as runs_batted_in,
+      SUM(CASE WHEN hit_type = 'single' THEN 1 ELSE 0 END) as singles,
+      SUM(CASE WHEN hit_type = 'double' THEN 1 ELSE 0 END) as doubles,
+      SUM(CASE WHEN hit_type = 'triple' THEN 1 ELSE 0 END) as triples,
+      SUM(CASE WHEN hit_type = 'home_run' THEN 1 ELSE 0 END) as home_runs
+    FROM at_bats
+    WHERE player_id = ?
+  `).bind(playerId).first();
+
+  // Per-series breakdown
+  const seriesStats = await c.env.DB.prepare(`
+    SELECT s.id as series_id, s.name as series_name, s.start_date, s.end_date, s.is_active,
+      COUNT(ab.id) as total_at_bats,
+      COALESCE(SUM(ab.bases), 0) as total_bases,
+      COALESCE(SUM(ab.runs_scored), 0) as runs_batted_in,
+      SUM(CASE WHEN ab.hit_type = 'single' THEN 1 ELSE 0 END) as singles,
+      SUM(CASE WHEN ab.hit_type = 'double' THEN 1 ELSE 0 END) as doubles,
+      SUM(CASE WHEN ab.hit_type = 'triple' THEN 1 ELSE 0 END) as triples,
+      SUM(CASE WHEN ab.hit_type = 'home_run' THEN 1 ELSE 0 END) as home_runs
+    FROM series s
+    INNER JOIN at_bats ab ON ab.series_id = s.id AND ab.player_id = ?
+    GROUP BY s.id
+    ORDER BY s.created_at DESC
+  `).bind(playerId).all();
+
+  return c.json({ player, career, series_stats: seriesStats.results });
+});
+
 // Individual player leaderboard
 statsRoutes.get('/leaderboard/players', authRequired, async (c) => {
   const seriesId = c.req.query('series_id');
