@@ -549,7 +549,9 @@ ol.rules-list li::before {
   top: 0.55rem;
 }
 .rules-table-wrapper { overflow-x: auto; margin: 0.5rem 0; }
-.rules-table-wrapper .stats-table tr:hover { background: none; }
+.rules-table-wrapper .stats-table tr:hover,
+.rules-table-wrapper .stats-table tr:nth-child(even):hover,
+.rules-table-wrapper .stats-table tr:nth-child(even) { background: transparent; cursor: default; }
 
 /* === Page Transitions === */
 #app {
