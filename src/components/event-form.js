@@ -79,13 +79,16 @@ export async function renderEventForm(container, options = {}) {
         showToast(msg, 'success');
         resultDiv.innerHTML = `<p class="success">${msg}</p>`;
 
-        // Play sounds based on hit type
-        if (hitType === 'home_run') {
-          playHomeRunFanfare();
-          launchConfetti();
-        } else {
-          const intensity = { single: 1, double: 2, triple: 3 }[hitType] || 1;
-          playBatCrack(intensity);
+        // Always play bat crack for the hit
+        const intensity = { single: 1, double: 2, triple: 3, home_run: 3 }[hitType] || 1;
+        playBatCrack(intensity);
+
+        // Celebrate when runs score
+        if (ab.runs_scored > 0) {
+          setTimeout(() => {
+            playHomeRunFanfare();
+            launchConfetti();
+          }, 300);
         }
 
         if (options.onSuccess) options.onSuccess(res);
