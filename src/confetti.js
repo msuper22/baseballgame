@@ -1,8 +1,22 @@
-const COLORS = ['#ff9f1c', '#e53935', '#ffd700', '#ffffff', '#43a047', '#1e88e5'];
-const PARTICLE_COUNT = 120;
-const DURATION = 3000;
+const COLORS_BY_LEVEL = {
+  1: ['#4caf50', '#81c784', '#ffffff'],
+  2: ['#1e88e5', '#42a5f5', '#ffffff', '#ffd700'],
+  3: ['#fb8c00', '#ffa726', '#ffffff', '#ffd700', '#e53935'],
+  4: ['#ff9f1c', '#e53935', '#ffd700', '#ffffff', '#43a047', '#1e88e5', '#8e24aa'],
+};
 
-export function launchConfetti() {
+/**
+ * Launch confetti scaled by runs scored.
+ * 1 run = small burst, 4 runs (grand slam) = massive explosion
+ */
+export function launchConfetti(runs = 1) {
+  const level = Math.min(runs, 4);
+  const particleCount = 40 + level * 40; // 80, 120, 160, 200
+  const spread = 100 + level * 50;       // wider spread for more runs
+  const velocity = 8 + level * 3;        // faster particles
+  const duration = 2000 + level * 500;   // longer for bigger celebrations
+  const colors = COLORS_BY_LEVEL[level] || COLORS_BY_LEVEL[1];
+
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9998';
   document.body.appendChild(canvas);
@@ -12,26 +26,36 @@ export function launchConfetti() {
   canvas.height = window.innerHeight;
 
   const particles = [];
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    particles.push({
-      x: canvas.width * 0.5 + (Math.random() - 0.5) * 200,
-      y: canvas.height * 0.4,
-      vx: (Math.random() - 0.5) * 16,
-      vy: -Math.random() * 14 - 4,
-      w: Math.random() * 8 + 4,
-      h: Math.random() * 6 + 3,
-      color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      rotation: Math.random() * Math.PI * 2,
-      rotSpeed: (Math.random() - 0.5) * 0.3,
-      life: 1,
-      decay: 0.005 + Math.random() * 0.01,
-    });
+
+  // For grand slam, burst from multiple points
+  const burstPoints = level >= 4 ? 3 : 1;
+  for (let b = 0; b < burstPoints; b++) {
+    const cx = burstPoints === 1
+      ? canvas.width * 0.5
+      : canvas.width * (0.25 + b * 0.25);
+    const count = Math.floor(particleCount / burstPoints);
+
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: cx + (Math.random() - 0.5) * spread,
+        y: canvas.height * (level >= 3 ? 0.35 : 0.4),
+        vx: (Math.random() - 0.5) * velocity * 2,
+        vy: -Math.random() * velocity - 4,
+        w: Math.random() * (6 + level * 2) + 3,
+        h: Math.random() * (4 + level) + 2,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.3,
+        life: 1,
+        decay: 0.004 + Math.random() * 0.008,
+      });
+    }
   }
 
   const start = performance.now();
 
   function frame(time) {
-    if (time - start > DURATION) {
+    if (time - start > duration) {
       canvas.remove();
       return;
     }
@@ -45,8 +69,8 @@ export function launchConfetti() {
 
       p.x += p.vx;
       p.y += p.vy;
-      p.vy += 0.3; // gravity
-      p.vx *= 0.99; // air resistance
+      p.vy += 0.3;
+      p.vx *= 0.99;
       p.rotation += p.rotSpeed;
       p.life -= p.decay;
 

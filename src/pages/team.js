@@ -54,6 +54,7 @@ export async function teamPage(app, params) {
             <div class="log-entry">
               <span class="log-type log-${ab.hit_type}">${formatHit(ab.hit_type)}</span>
               <span class="log-player">${ab.player_name}</span>
+              ${ab.description ? `<span class="log-lead">ID: ${ab.description}</span>` : ''}
               ${ab.runs_scored > 0 ? `<span class="log-runs">+${ab.runs_scored}R</span>` : ''}
               <span class="log-time">${new Date(ab.created_at + 'Z').toLocaleString()}</span>
             </div>

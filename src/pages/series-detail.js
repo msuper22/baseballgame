@@ -133,6 +133,7 @@ async function loadSeriesTab(tabName, seriesId) {
               <span class="play-type play-${ab.hit_type}">${formatHitType(ab.hit_type)}</span>
               <span class="play-player">${ab.player_name}</span>
               <span class="play-team">${ab.team_name}</span>
+              ${ab.description ? `<span class="play-lead">ID: ${ab.description}</span>` : ''}
               ${ab.runs_scored > 0 ? `<span class="play-runs">+${ab.runs_scored} run${ab.runs_scored > 1 ? 's' : ''}</span>` : ''}
               <span class="play-time">${formatDate(ab.created_at)}</span>
             </div>

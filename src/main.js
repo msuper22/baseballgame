@@ -9,6 +9,7 @@ import { logEventPage } from './pages/log-event.js';
 import { adminPage } from './pages/admin.js';
 import { historyPage } from './pages/history.js';
 import { seriesDetailPage } from './pages/series-detail.js';
+import { rulesPage } from './pages/rules.js';
 import { initTheme } from './theme.js';
 import './style.css';
 
@@ -22,6 +23,7 @@ route('/register', registerPage);
 route('/team/:id', teamPage);
 route('/leaderboard', leaderboardPage);
 route('/history', historyPage);
+route('/rules', rulesPage);
 route('/series/:id', seriesDetailPage);
 route('/log-event', logEventPage);
 route('/admin', adminPage);

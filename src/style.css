@@ -435,6 +435,7 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 .play-home_run { background: #e53935; color: white; }
 .play-player { font-weight: 600; }
 .play-team { color: var(--text-muted); }
+.play-lead { color: var(--text-muted); font-size: 0.95rem; font-style: italic; }
 .play-runs { color: var(--success); font-weight: 700; }
 .play-time { margin-left: auto; color: var(--text-muted); font-size: 0.95rem; }
 
@@ -453,6 +454,7 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 .log-triple { background: #fb8c00; color: white; }
 .log-home_run { background: #e53935; color: white; }
 .log-player { font-weight: 600; }
+.log-lead { color: var(--text-muted); font-size: 0.95rem; font-style: italic; }
 .log-runs { color: var(--success); font-weight: 700; }
 .log-time { margin-left: auto; color: var(--text-muted); }
 
@@ -506,6 +508,47 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 .history-team-stat { color: var(--text-muted); font-size: 1rem; min-width: 3rem; text-align: right; }
 .history-team-leader .history-team-stat { color: var(--text); }
 .history-card-footer { display: flex; justify-content: flex-end; }
+
+/* === Rules === */
+.rules-section {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid var(--border);
+}
+.rules-section:last-child { border-bottom: none; }
+.rules-section p {
+  margin-bottom: 0.75rem;
+  line-height: 1.7;
+}
+.rules-section h2 { margin-bottom: 0.75rem; }
+.rules-section h3 { margin: 1rem 0 0.5rem; }
+.rules-list {
+  list-style: none;
+  padding: 0;
+}
+.rules-list li {
+  padding: 0.4rem 0 0.4rem 1.5rem;
+  position: relative;
+  line-height: 1.6;
+}
+.rules-list li::before {
+  content: '\25B8';
+  position: absolute;
+  left: 0.25rem;
+  color: var(--primary);
+}
+ol.rules-list { counter-reset: rules-counter; }
+ol.rules-list li { counter-increment: rules-counter; }
+ol.rules-list li::before {
+  content: counter(rules-counter) '.';
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.55rem;
+  color: var(--primary);
+  position: absolute;
+  left: 0;
+  top: 0.55rem;
+}
+.rules-table-wrapper { overflow-x: auto; margin: 0.5rem 0; }
 
 /* === Page Transitions === */
 #app {
