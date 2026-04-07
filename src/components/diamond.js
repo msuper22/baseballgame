@@ -31,9 +31,9 @@ export function renderDiamond(container, state) {
         <text x="${x}" y="${y + 3}" text-anchor="middle" font-size="7" font-weight="700" fill="${teamColor}">
           ${getInitials(name)}
         </text>
-        <rect x="${labelX - getTextWidth(name)/2 - 6}" y="${labelY - 10}" width="${getTextWidth(name) + 12}" height="18" rx="9"
+        <rect x="${labelX - getTextWidth(name, 8)/2 - 7}" y="${labelY - 11}" width="${getTextWidth(name, 8) + 14}" height="22" rx="11"
               fill="${teamColor}" opacity="0.9"/>
-        <text x="${labelX}" y="${labelY + 2}" text-anchor="${anchor}" font-size="10" font-weight="600" fill="white" class="runner-label">
+        <text x="${labelX}" y="${labelY + 3}" text-anchor="${anchor}" font-size="13" font-weight="600" fill="white" class="runner-label">
           ${name}
         </text>
       </g>`;
@@ -194,8 +194,8 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function getTextWidth(text) {
-  return text ? text.length * 6 : 0;
+function getTextWidth(text, charWidth = 6) {
+  return text ? text.length * charWidth : 0;
 }
 
 const TEAM_COLORS = ['#1e88e5', '#e53935', '#43a047', '#fb8c00', '#8e24aa', '#00acc1'];
