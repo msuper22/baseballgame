@@ -219,8 +219,18 @@ h3 { font-size: 0.8rem; }
 }
 
 .diamonds-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  display: flex; flex-wrap: wrap; justify-content: center;
   gap: 1.5rem; margin-bottom: 2rem;
+}
+.diamonds-grid .diamond-wrapper {
+  width: calc(33.333% - 1rem);
+  min-width: 300px;
+}
+@media (max-width: 1000px) {
+  .diamonds-grid .diamond-wrapper { width: calc(50% - 0.75rem); }
+}
+@media (max-width: 680px) {
+  .diamonds-grid .diamond-wrapper { width: 100%; min-width: 0; }
 }
 
 .diamond-wrapper { cursor: pointer; transition: transform 0.2s; }
