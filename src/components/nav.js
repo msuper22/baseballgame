@@ -23,6 +23,7 @@ export function renderNav() {
 
   const user = getUser();
   const adminLink = isAdmin() ? '<a href="#/admin" class="nav-link">Admin</a>' : '';
+  const profileLink = `<a href="#/player/${user?.id}" class="nav-link">${isAdmin() ? 'My Profile' : 'Profile'}</a>`;
   const logEventLink = isMod() || isLoggedIn() ? '<a href="#/log-event" class="nav-link">Log Event</a>' : '';
 
   nav.innerHTML = `
@@ -34,6 +35,7 @@ export function renderNav() {
         <a href="#/history" class="nav-link">History</a>
         <a href="#/rules" class="nav-link">Rules</a>
         ${logEventLink}
+        ${profileLink}
         ${adminLink}
         <span class="nav-user">${user?.display_name || user?.username}</span>
         <button id="theme-btn" class="theme-toggle">${themeIcon}</button>
