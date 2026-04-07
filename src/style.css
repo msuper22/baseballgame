@@ -47,7 +47,7 @@ body {
   color: var(--text);
   min-height: 100vh;
   line-height: 1.5;
-  font-size: 1.15rem;
+  font-size: 1.25rem;
 }
 
 h1, h2, h3 {
@@ -55,11 +55,11 @@ h1, h2, h3 {
   text-transform: uppercase;
   letter-spacing: 2px;
   text-shadow: 2px 2px 0 rgba(0,0,0,0.3);
-  line-height: 1.6;
+  line-height: 1.8;
 }
-h1 { font-size: 1rem; }
-h2 { font-size: 0.8rem; }
-h3 { font-size: 0.7rem; }
+h1 { font-size: 1.1rem; }
+h2 { font-size: 0.9rem; }
+h3 { font-size: 0.8rem; }
 
 /* === Nav === */
 #nav {
@@ -83,7 +83,7 @@ h3 { font-size: 0.7rem; }
 
 .nav-logo {
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: var(--primary);
   text-decoration: none;
@@ -103,7 +103,7 @@ h3 { font-size: 0.7rem; }
   text-decoration: none;
   padding: 0.4rem 0.75rem;
   border-radius: var(--radius);
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   transition: all 0.2s;
 }
 
@@ -112,7 +112,7 @@ h3 { font-size: 0.7rem; }
 .nav-user {
   font-family: 'Press Start 2P', cursive;
   color: var(--primary);
-  font-size: 0.55rem;
+  font-size: 0.7rem;
   padding: 0 0.5rem;
 }
 
@@ -144,7 +144,7 @@ h3 { font-size: 0.7rem; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 0.5rem 1rem; border: 2px solid var(--border); border-radius: var(--radius);
-  font-family: 'VT323', monospace; font-size: 1.1rem; cursor: pointer;
+  font-family: 'VT323', monospace; font-size: 1.25rem; cursor: pointer;
   background: var(--bg-card); color: var(--text); transition: all 0.2s;
 }
 .btn:hover { border-color: var(--primary); color: var(--primary); }
@@ -159,15 +159,15 @@ h3 { font-size: 0.7rem; }
 /* === Forms === */
 .form-group { margin-bottom: 1rem; }
 .form-group label {
-  display: block; margin-bottom: 0.3rem;
+  display: block; margin-bottom: 0.4rem;
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.5rem; color: var(--text-muted);
+  font-size: 0.65rem; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: 1px;
 }
 .form-input {
   width: 100%; padding: 0.6rem 0.75rem; border: 2px solid var(--border);
   border-radius: var(--radius); background: var(--bg-input); color: var(--text);
-  font-family: 'VT323', monospace; font-size: 1.15rem; transition: border-color 0.2s;
+  font-family: 'VT323', monospace; font-size: 1.3rem; transition: border-color 0.2s;
 }
 .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 8px var(--glow); }
 
@@ -184,10 +184,10 @@ h3 { font-size: 0.7rem; }
   border: 3px solid var(--primary);
   box-shadow: 0 0 30px var(--glow), inset 0 0 30px rgba(0,0,0,0.2);
 }
-.auth-card h1 { font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--primary); }
+.auth-card h1 { font-size: 1rem; margin-bottom: 0.5rem; color: var(--primary); }
 .auth-subtitle {
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.5rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
   margin-bottom: 2rem;
   animation: blink 1.5s step-end infinite;
@@ -207,7 +207,7 @@ h3 { font-size: 0.7rem; }
 .series-info { font-size: 1rem; color: var(--text-muted); }
 .series-name {
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.55rem;
+  font-size: 0.7rem;
   color: var(--primary);
   margin-right: 0.5rem;
   text-shadow: 0 0 8px var(--glow);
@@ -255,7 +255,7 @@ h3 { font-size: 0.7rem; }
 
 .diamond-team-name {
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.6rem; margin-bottom: 0.75rem;
+  font-size: 0.75rem; margin-bottom: 0.75rem;
   color: var(--team-color, var(--primary));
   text-transform: uppercase; letter-spacing: 2px;
 }
@@ -277,7 +277,7 @@ h3 { font-size: 0.7rem; }
 }
 .stat-label {
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.4rem; color: var(--text-muted);
+  font-size: 0.55rem; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: 1px;
 }
 
@@ -300,7 +300,7 @@ h3 { font-size: 0.7rem; }
 .stats-table th {
   background: var(--scoreboard-bg);
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.5rem;
+  font-size: 0.6rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -308,7 +308,7 @@ h3 { font-size: 0.7rem; }
 }
 .stats-table td {
   font-family: 'VT323', monospace;
-  font-size: 1.2rem;
+  font-size: 1.35rem;
 }
 .stats-table th.sortable { cursor: pointer; }
 .stats-table th.sortable:hover { color: var(--text); }
@@ -322,7 +322,7 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 .tab {
   padding: 0.6rem 1.2rem; background: none; border: none; border-bottom: 3px solid transparent;
   font-family: 'VT323', monospace; color: var(--text-muted);
-  font-size: 1.1rem; cursor: pointer; transition: all 0.2s;
+  font-size: 1.3rem; cursor: pointer; transition: all 0.2s;
 }
 .tab:hover { color: var(--text); }
 .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
@@ -344,19 +344,19 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 
 .hit-icon {
   font-family: 'Press Start 2P', cursive;
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   color: white;
   text-shadow: 0 0 8px rgba(255,255,255,0.5);
 }
 .hit-label {
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.55rem;
+  font-size: 0.7rem;
   color: white;
 }
 .hit-desc {
   font-family: 'VT323', monospace;
-  font-size: 0.95rem;
-  color: rgba(255,255,255,0.7);
+  font-size: 1.15rem;
+  color: rgba(255,255,255,0.85);
 }
 
 /* Single - Green */
@@ -426,8 +426,8 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 }
 .play-type {
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.5rem; padding: 0.25rem 0.5rem;
-  border-radius: 4px; min-width: 32px; text-align: center;
+  font-size: 0.6rem; padding: 0.3rem 0.6rem;
+  border-radius: 4px; min-width: 36px; text-align: center;
 }
 .play-single { background: #43a047; color: white; }
 .play-double { background: #1e88e5; color: white; }
@@ -446,7 +446,7 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 }
 .log-type {
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.45rem; padding: 0.2rem 0.4rem; border-radius: 4px;
+  font-size: 0.6rem; padding: 0.25rem 0.5rem; border-radius: 4px;
 }
 .log-single { background: #43a047; color: white; }
 .log-double { background: #1e88e5; color: white; }
@@ -471,7 +471,7 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 
 .badge {
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.4rem; padding: 0.2rem 0.5rem; border-radius: 4px;
+  font-size: 0.55rem; padding: 0.25rem 0.6rem; border-radius: 4px;
   background: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border);
   letter-spacing: 0.5px;
 }
@@ -488,7 +488,7 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 }
 .history-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 4px 16px var(--glow); }
 .history-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
-.history-card-title { font-size: 0.7rem; }
+.history-card-title { font-size: 0.8rem; }
 .history-card-dates { font-size: 1rem; color: var(--text-muted); }
 .history-card-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
 .history-card-teams { margin-bottom: 1rem; }
@@ -499,7 +499,7 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 .history-team-leader { background: rgba(255, 159, 28, 0.08); }
 .history-rank {
   font-family: 'Press Start 2P', cursive;
-  font-size: 0.55rem; color: var(--text-muted); min-width: 1.5rem; text-align: center;
+  font-size: 0.65rem; color: var(--text-muted); min-width: 1.5rem; text-align: center;
 }
 .history-team-leader .history-rank { color: var(--primary); }
 .history-team-name { flex: 1; }
@@ -527,7 +527,7 @@ html.dark .stats-table tr:nth-child(even) { background: rgba(255,255,255,0.03); 
 .toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; }
 .toast {
   padding: 0.75rem 1.25rem; border-radius: var(--radius);
-  font-family: 'Press Start 2P', cursive; font-size: 0.5rem; line-height: 1.6;
+  font-family: 'Press Start 2P', cursive; font-size: 0.6rem; line-height: 1.8;
   color: white; opacity: 0; transform: translateX(100%); transition: all 0.3s ease;
   max-width: 400px;
   border: 2px solid rgba(255,255,255,0.3);
