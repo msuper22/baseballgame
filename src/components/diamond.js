@@ -1,6 +1,6 @@
 /**
  * Renders a baseball field SVG with runners, team name, and stats.
- * Fan-shaped layout matching real field proportions.
+ * Accurate fan-shaped layout matching real field proportions.
  */
 export function renderDiamond(container, state) {
   const teamName = state.team_name || 'Team';
@@ -17,15 +17,19 @@ export function renderDiamond(container, state) {
   // Theme colors
   const bg = isLight ? '#e8f5e9' : '#0a1a10';
   const grassDark = isLight ? '#43a047' : '#2d8a4e';
-  const grassMid = isLight ? '#4caf50' : '#338a50';
   const grassLight = isLight ? '#66bb6a' : '#3a9e5c';
-  const dirtColor = isLight ? '#dbb54c' : '#c9a040';
-  const dirtDark = isLight ? '#c9a040' : '#b08530';
+  const dirt = isLight ? '#d4a84b' : '#c49a3c';
+  const dirtDark = isLight ? '#c49a3c' : '#a88030';
   const wallColor = isLight ? '#2e7d32' : '#1a3a1a';
   const wallStroke = isLight ? '#1b5e20' : '#0d2a0d';
-  const chalkColor = 'white';
-  const chalkOpacity = isLight ? '0.9' : '0.85';
   const labelColor = isLight ? '#444' : '#aaa';
+
+  // Key coordinates - diamond centered, home at bottom
+  // Home=200,310  1B=290,210  2B=200,110  3B=110,210
+  const hx = 200, hy = 310; // home
+  const fx = 290, fy = 210; // first
+  const sx = 200, sy = 110; // second
+  const tx = 110, ty = 210; // third
 
   function renderRunner(x, y, name, labelX, labelY) {
     if (!name) return '';
@@ -52,92 +56,122 @@ export function renderDiamond(container, state) {
   container.innerHTML = `
     <div class="diamond-card" style="--team-color: ${teamColor}">
       <h3 class="diamond-team-name">${teamName}</h3>
-      <svg viewBox="0 0 400 380" class="diamond-svg" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 400 420" class="diamond-svg" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <filter id="${glowId}" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
             <feComposite in="SourceGraphic" in2="blur" operator="over"/>
           </filter>
-          <clipPath id="field-clip-${state.team_id || 0}">
-            <path d="M 200 10 Q 390 60 370 250 L 310 320 Q 200 370 90 320 L 30 250 Q 10 60 200 10 Z"/>
-          </clipPath>
         </defs>
 
         <!-- Card background -->
-        <rect x="0" y="0" width="400" height="380" fill="${bg}" rx="12"/>
+        <rect x="0" y="0" width="400" height="420" fill="${bg}" rx="12"/>
 
-        <!-- Outfield wall -->
-        <path d="M 200 10 Q 390 60 370 250 L 310 320 Q 200 370 90 320 L 30 250 Q 10 60 200 10 Z"
+        <!-- Outfield wall + grass - fan shape from home through 1B and 3B -->
+        <path d="M ${hx} ${hy}
+               L 20 ${ty}
+               Q 10 40 ${sx} 15
+               Q 390 40 380 ${fy}
+               Z"
               fill="${wallColor}" stroke="${wallStroke}" stroke-width="3"/>
 
-        <!-- Outfield grass - extends below home plate -->
-        <path d="M 200 22 Q 378 68 360 245 L 302 312 Q 200 358 98 312 L 40 245 Q 22 68 200 22 Z"
+        <!-- Grass fill (inside wall) -->
+        <path d="M ${hx} ${hy - 4}
+               L 28 ${ty + 2}
+               Q 18 48 ${sx} 24
+               Q 382 48 372 ${fy + 2}
+               Z"
+              fill="${grassDark}"/>
+
+        <!-- Grass below home - the bottom wedge -->
+        <path d="M ${hx} ${hy}
+               L 28 ${ty + 2}
+               Q 60 340 ${hx} 380
+               Q 340 340 372 ${fy + 2}
+               Z"
               fill="${grassDark}"/>
 
         <!-- Mowing stripes -->
-        <g clip-path="url(#field-clip-${state.team_id || 0})" opacity="0.1">
-          <line x1="120" y1="20" x2="120" y2="360" stroke="${grassLight}" stroke-width="14"/>
-          <line x1="160" y1="20" x2="160" y2="360" stroke="${grassLight}" stroke-width="14"/>
-          <line x1="240" y1="20" x2="240" y2="360" stroke="${grassLight}" stroke-width="14"/>
-          <line x1="280" y1="20" x2="280" y2="360" stroke="${grassLight}" stroke-width="14"/>
+        <g opacity="0.08">
+          <line x1="130" y1="30" x2="130" y2="370" stroke="${grassLight}" stroke-width="16"/>
+          <line x1="170" y1="25" x2="170" y2="375" stroke="${grassLight}" stroke-width="16"/>
+          <line x1="230" y1="25" x2="230" y2="375" stroke="${grassLight}" stroke-width="16"/>
+          <line x1="270" y1="30" x2="270" y2="370" stroke="${grassLight}" stroke-width="16"/>
         </g>
 
-        <!-- Infield dirt - large arc -->
-        <path d="M 100 230 Q 100 130 200 100 Q 300 130 300 230 Z" fill="${dirtColor}"/>
+        <!-- Infield dirt - large arc from 1B side to 3B side -->
+        <path d="M ${tx - 8} ${ty + 10}
+               Q ${tx - 8} ${sy - 10} ${sx} ${sy - 20}
+               Q ${fx + 8} ${sy - 10} ${fx + 8} ${fy + 10}
+               L ${fx} ${fy + 8}
+               L ${hx} ${hy}
+               L ${tx} ${ty + 8}
+               Z"
+              fill="${dirt}"/>
 
-        <!-- Infield grass circle -->
-        <circle cx="200" cy="195" r="52" fill="${grassMid}"/>
+        <!-- Infield grass (diamond shape inside dirt) -->
+        <polygon points="${hx},${hy - 50} ${fx - 38},${fy + 8} ${sx},${sy + 42} ${tx + 38},${ty + 8}"
+                 fill="${grassDark}"/>
 
-        <!-- Dirt basepaths (diamond shape on top of grass) -->
-        <polygon points="200,105 290,200 200,300 110,200" fill="none" stroke="${dirtDark}" stroke-width="12" opacity="0.3"/>
+        <!-- Pitcher's mound circle -->
+        <circle cx="${hx}" cy="${(sy + hy) / 2 + 12}" r="16" fill="${dirt}" stroke="${dirtDark}" stroke-width="1.5"/>
+        <rect x="${hx - 6}" y="${(sy + hy) / 2 + 10}" width="12" height="4" fill="white" rx="1.5" opacity="0.95"/>
 
-        <!-- Batter's box dirt -->
-        <path d="M 175 290 Q 175 270 200 268 Q 225 270 225 290 L 225 320 Q 225 330 200 332 Q 175 330 175 320 Z"
-              fill="${dirtColor}"/>
+        <!-- Dirt basepaths from home to 1B and 3B -->
+        <line x1="${hx}" y1="${hy}" x2="${fx}" y2="${fy}" stroke="${dirt}" stroke-width="14" stroke-linecap="round"/>
+        <line x1="${hx}" y1="${hy}" x2="${tx}" y2="${ty}" stroke="${dirt}" stroke-width="14" stroke-linecap="round"/>
 
-        <!-- Foul lines -->
-        <line x1="200" y1="300" x2="40" y2="225" stroke="${chalkColor}" stroke-width="2" opacity="${chalkOpacity}"/>
-        <line x1="200" y1="300" x2="360" y2="225" stroke="${chalkColor}" stroke-width="2" opacity="${chalkOpacity}"/>
+        <!-- Home plate dirt circle -->
+        <circle cx="${hx}" cy="${hy}" r="22" fill="${dirt}"/>
 
-        <!-- Base paths (chalk) -->
-        <line x1="200" y1="300" x2="290" y2="200" stroke="${chalkColor}" stroke-width="2.5" opacity="${chalkOpacity}"/>
-        <line x1="290" y1="200" x2="200" y2="105" stroke="${chalkColor}" stroke-width="2.5" opacity="${chalkOpacity}"/>
-        <line x1="200" y1="105" x2="110" y2="200" stroke="${chalkColor}" stroke-width="2.5" opacity="${chalkOpacity}"/>
-        <line x1="110" y1="200" x2="200" y2="300" stroke="${chalkColor}" stroke-width="2.5" opacity="${chalkOpacity}"/>
+        <!-- Foul lines - from home through 1B/3B extending to outfield edge -->
+        <line x1="${hx}" y1="${hy}" x2="372" y2="${fy + 2}" stroke="white" stroke-width="2" opacity="0.9"/>
+        <line x1="${hx}" y1="${hy}" x2="28" y2="${ty + 2}" stroke="white" stroke-width="2" opacity="0.9"/>
 
-        <!-- Pitcher's mound -->
-        <circle cx="200" cy="200" r="12" fill="${dirtColor}" stroke="${dirtDark}" stroke-width="1"/>
-        <rect x="195" y="198" width="10" height="4" fill="white" rx="1" opacity="0.95"/>
+        <!-- Base path chalk lines -->
+        <line x1="${hx}" y1="${hy}" x2="${fx}" y2="${fy}" stroke="white" stroke-width="2" opacity="0.85"/>
+        <line x1="${fx}" y1="${fy}" x2="${sx}" y2="${sy}" stroke="white" stroke-width="2" opacity="0.85"/>
+        <line x1="${sx}" y1="${sy}" x2="${tx}" y2="${ty}" stroke="white" stroke-width="2" opacity="0.85"/>
+        <line x1="${tx}" y1="${ty}" x2="${hx}" y2="${hy}" stroke="white" stroke-width="2" opacity="0.85"/>
 
         <!-- Home plate -->
-        <polygon points="200,300 192,293 192,286 208,286 208,293" fill="white" stroke="#888" stroke-width="1.5"/>
+        <polygon points="${hx},${hy + 2} ${hx - 8},${hy - 5} ${hx - 6},${hy - 10} ${hx + 6},${hy - 10} ${hx + 8},${hy - 5}"
+                 fill="white" stroke="#888" stroke-width="1.5"/>
 
         <!-- Batter's boxes -->
-        <rect x="175" y="285" width="12" height="24" fill="none" stroke="white" stroke-width="1" opacity="0.5" rx="1"/>
-        <rect x="213" y="285" width="12" height="24" fill="none" stroke="white" stroke-width="1" opacity="0.5" rx="1"/>
+        <rect x="${hx - 22}" y="${hy - 14}" width="12" height="26" fill="none" stroke="white" stroke-width="1.5" opacity="0.6" rx="1"/>
+        <rect x="${hx + 10}" y="${hy - 14}" width="12" height="26" fill="none" stroke="white" stroke-width="1.5" opacity="0.6" rx="1"/>
+
+        <!-- On-deck circles -->
+        <circle cx="${hx - 55}" cy="${hy + 30}" r="4" fill="${dirt}" opacity="0.7"/>
+        <circle cx="${hx + 55}" cy="${hy + 30}" r="4" fill="${dirt}" opacity="0.7"/>
+
+        <!-- Coach's boxes -->
+        <rect x="${tx - 45}" y="${ty + 40}" width="16" height="24" fill="none" stroke="white" stroke-width="1" opacity="0.4" rx="1"/>
+        <rect x="${fx + 30}" y="${fy + 40}" width="16" height="24" fill="none" stroke="white" stroke-width="1" opacity="0.4" rx="1"/>
 
         <!-- First base -->
-        <rect x="280" y="190" width="20" height="20" rx="2" transform="rotate(45, 290, 200)"
+        <rect x="${fx - 10}" y="${fy - 10}" width="20" height="20" rx="2" transform="rotate(45, ${fx}, ${fy})"
               fill="${first ? teamColor : 'white'}" stroke="${first ? 'white' : '#888'}" stroke-width="${first ? 2.5 : 1.5}"/>
 
         <!-- Second base -->
-        <rect x="190" y="95" width="20" height="20" rx="2" transform="rotate(45, 200, 105)"
+        <rect x="${sx - 10}" y="${sy - 10}" width="20" height="20" rx="2" transform="rotate(45, ${sx}, ${sy})"
               fill="${second ? teamColor : 'white'}" stroke="${second ? 'white' : '#888'}" stroke-width="${second ? 2.5 : 1.5}"/>
 
         <!-- Third base -->
-        <rect x="100" y="190" width="20" height="20" rx="2" transform="rotate(45, 110, 200)"
+        <rect x="${tx - 10}" y="${ty - 10}" width="20" height="20" rx="2" transform="rotate(45, ${tx}, ${ty})"
               fill="${third ? teamColor : 'white'}" stroke="${third ? 'white' : '#888'}" stroke-width="${third ? 2.5 : 1.5}"/>
 
         <!-- Base labels when empty -->
-        ${!first ? `<text x="310" y="220" font-size="11" fill="${labelColor}" text-anchor="middle" opacity="0.7">1B</text>` : ''}
-        ${!second ? `<text x="200" y="128" font-size="11" fill="${labelColor}" text-anchor="middle" opacity="0.7">2B</text>` : ''}
-        ${!third ? `<text x="90" y="220" font-size="11" fill="${labelColor}" text-anchor="middle" opacity="0.7">3B</text>` : ''}
-        <text x="200" y="350" font-size="11" fill="${labelColor}" text-anchor="middle" opacity="0.7">HOME</text>
+        ${!first ? `<text x="${fx + 22}" y="${fy + 24}" font-size="11" fill="${labelColor}" text-anchor="middle" opacity="0.7">1B</text>` : ''}
+        ${!second ? `<text x="${sx}" y="${sy - 20}" font-size="11" fill="${labelColor}" text-anchor="middle" opacity="0.7">2B</text>` : ''}
+        ${!third ? `<text x="${tx - 22}" y="${ty + 24}" font-size="11" fill="${labelColor}" text-anchor="middle" opacity="0.7">3B</text>` : ''}
+        <text x="${hx}" y="${hy + 48}" font-size="11" fill="${labelColor}" text-anchor="middle" opacity="0.7">HOME</text>
 
         <!-- Runners -->
-        ${renderRunner(290, 200, first, 338, 188)}
-        ${renderRunner(200, 105, second, 200, 75)}
-        ${renderRunner(110, 200, third, 62, 188)}
+        ${renderRunner(fx, fy, first, fx + 50, fy - 8)}
+        ${renderRunner(sx, sy, second, sx, sy - 30)}
+        ${renderRunner(tx, ty, third, tx - 50, ty - 8)}
       </svg>
 
       <div class="diamond-stats">
