@@ -67,27 +67,29 @@ export function renderDiamond(container, state) {
         <!-- Card background -->
         <rect x="0" y="0" width="400" height="420" fill="${bg}" rx="12"/>
 
-        <!-- Outfield wall + grass - fan shape from home through 1B and 3B -->
+        <!-- Outfield wall + grass - fan shape, edges on foul lines (home through 1B/3B extended) -->
+        <!-- Foul line direction: home(200,310)->1B(290,210) = (+90,-100), extended to wall edge ~(362,130) -->
+        <!-- Foul line direction: home(200,310)->3B(110,210) = (-90,-100), extended to wall edge ~(38,130) -->
         <path d="M ${hx} ${hy}
-               L 20 ${ty}
-               Q 10 40 ${sx} 15
-               Q 390 40 380 ${fy}
+               L 38 130
+               Q 15 40 ${sx} 15
+               Q 385 40 362 130
                Z"
               fill="${wallColor}" stroke="${wallStroke}" stroke-width="3"/>
 
         <!-- Grass fill (inside wall) -->
-        <path d="M ${hx} ${hy - 4}
-               L 28 ${ty + 2}
-               Q 18 48 ${sx} 24
-               Q 382 48 372 ${fy + 2}
+        <path d="M ${hx} ${hy}
+               L 42 134
+               Q 22 48 ${sx} 24
+               Q 378 48 358 134
                Z"
               fill="${grassDark}"/>
 
         <!-- Grass below home - the bottom wedge -->
         <path d="M ${hx} ${hy}
-               L 28 ${ty + 2}
+               L 42 134
                Q 60 340 ${hx} 380
-               Q 340 340 372 ${fy + 2}
+               Q 340 340 358 134
                Z"
               fill="${grassDark}"/>
 
@@ -124,9 +126,9 @@ export function renderDiamond(container, state) {
         <!-- Home plate dirt circle -->
         <circle cx="${hx}" cy="${hy}" r="22" fill="${dirt}"/>
 
-        <!-- Foul lines - from home through 1B/3B extending to outfield edge -->
-        <line x1="${hx}" y1="${hy}" x2="372" y2="${fy + 2}" stroke="white" stroke-width="2" opacity="0.9"/>
-        <line x1="${hx}" y1="${hy}" x2="28" y2="${ty + 2}" stroke="white" stroke-width="2" opacity="0.9"/>
+        <!-- Foul lines - from home through 1B/3B extending to outfield wall -->
+        <line x1="${hx}" y1="${hy}" x2="362" y2="130" stroke="white" stroke-width="2" opacity="0.9"/>
+        <line x1="${hx}" y1="${hy}" x2="38" y2="130" stroke="white" stroke-width="2" opacity="0.9"/>
 
         <!-- Base path chalk lines -->
         <line x1="${hx}" y1="${hy}" x2="${fx}" y2="${fy}" stroke="white" stroke-width="2" opacity="0.85"/>
