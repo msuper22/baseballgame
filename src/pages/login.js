@@ -7,8 +7,8 @@ export async function loginPage(app) {
   app.innerHTML = `
     <div class="auth-container">
       <div class="auth-card">
-        <h1>&#9918; MLB Tracker</h1>
-        <p class="auth-subtitle">Production Competition</p>
+        <h1>&#9918; LBCS</h1>
+        <p class="auth-subtitle">Step Up to the Plate</p>
         <form id="login-form" class="auth-form">
           <div class="form-group">
             <label for="username">Username</label>

@@ -52,6 +52,10 @@ export function startRouter() {
       currentCleanup = null;
     }
 
+    // Page exit transition
+    app.classList.add('page-exit');
+    await new Promise(r => setTimeout(r, 150));
+
     const matched = matchRoute(path);
     if (matched) {
       const cleanup = await matched.handler(app, matched.params);
@@ -59,6 +63,9 @@ export function startRouter() {
     } else {
       app.innerHTML = '<div class="container"><h1>404 - Page Not Found</h1></div>';
     }
+
+    // Page enter transition
+    app.classList.remove('page-exit');
   }
 
   window.addEventListener('hashchange', handleRoute);

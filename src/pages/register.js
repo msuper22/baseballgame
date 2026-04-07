@@ -7,8 +7,8 @@ export async function registerPage(app) {
   app.innerHTML = `
     <div class="auth-container">
       <div class="auth-card">
-        <h1>&#9918; Join the Game</h1>
-        <p class="auth-subtitle">Register with your team invite code</p>
+        <h1>&#9918; New Player</h1>
+        <p class="auth-subtitle">Join the Roster</p>
         <form id="register-form" class="auth-form">
           <div class="form-group">
             <label for="invite_code">Team Invite Code</label>

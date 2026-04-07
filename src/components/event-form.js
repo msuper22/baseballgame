@@ -1,5 +1,7 @@
 import { api, getUser, isMod } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { playBatCrack, playHomeRunFanfare, playError } from '../sounds.js';
+import { launchConfetti } from '../confetti.js';
 
 /**
  * Renders the "log production event" form.
@@ -32,23 +34,23 @@ export async function renderEventForm(container, options = {}) {
         </select>
       </div>
       <div class="hit-buttons">
-        <button class="btn hit-btn hit-single" data-type="single">
-          <span class="hit-icon">&#9312;</span>
+        <button class="hit-btn hit-single" data-type="single">
+          <span class="hit-icon">1B</span>
           <span class="hit-label">Single</span>
           <span class="hit-desc">App Taken</span>
         </button>
-        <button class="btn hit-btn hit-double" data-type="double">
-          <span class="hit-icon">&#9313;</span>
+        <button class="hit-btn hit-double" data-type="double">
+          <span class="hit-icon">2B</span>
           <span class="hit-label">Double</span>
           <span class="hit-desc">Light House</span>
         </button>
-        <button class="btn hit-btn hit-triple" data-type="triple">
-          <span class="hit-icon">&#9314;</span>
+        <button class="hit-btn hit-triple" data-type="triple">
+          <span class="hit-icon">3B</span>
           <span class="hit-label">Triple</span>
           <span class="hit-desc">Out</span>
         </button>
-        <button class="btn hit-btn hit-homer" data-type="home_run">
-          <span class="hit-icon">&#9315;</span>
+        <button class="hit-btn hit-homer" data-type="home_run">
+          <span class="hit-icon">HR</span>
           <span class="hit-label">Home Run</span>
           <span class="hit-desc">Out + Docs Back</span>
         </button>
@@ -77,8 +79,18 @@ export async function renderEventForm(container, options = {}) {
         showToast(msg, 'success');
         resultDiv.innerHTML = `<p class="success">${msg}</p>`;
 
+        // Play sounds based on hit type
+        if (hitType === 'home_run') {
+          playHomeRunFanfare();
+          launchConfetti();
+        } else {
+          const intensity = { single: 1, double: 2, triple: 3 }[hitType] || 1;
+          playBatCrack(intensity);
+        }
+
         if (options.onSuccess) options.onSuccess(res);
       } catch (e) {
+        playError();
         showToast(e.message, 'error');
         resultDiv.innerHTML = `<p class="error">${e.message}</p>`;
       } finally {

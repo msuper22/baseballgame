@@ -9,7 +9,7 @@ export async function dashboardPage(app) {
   app.innerHTML = `
     <div class="container">
       <div class="dashboard-header">
-        <h1>&#127935; Game Dashboard</h1>
+        <h1>&#9918; Scoreboard</h1>
         <div id="series-info" class="series-info"></div>
       </div>
       <div id="diamonds-grid" class="diamonds-grid">

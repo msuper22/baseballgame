@@ -9,7 +9,11 @@ import { logEventPage } from './pages/log-event.js';
 import { adminPage } from './pages/admin.js';
 import { historyPage } from './pages/history.js';
 import { seriesDetailPage } from './pages/series-detail.js';
+import { initTheme } from './theme.js';
 import './style.css';
+
+// Init theme before anything renders
+initTheme();
 
 // Register routes
 route('/', dashboardPage);
