@@ -201,6 +201,7 @@ async function loadSeriesTab(content) {
               </div>
               <div class="admin-item-actions">
                 ${s.is_active ? `<button class="btn btn-sm btn-danger end-series" data-id="${s.id}">End Series</button>` : ''}
+                <button class="btn btn-sm btn-danger delete-series" data-id="${s.id}" data-name="${s.name}">Delete</button>
               </div>
             </div>
           `).join('')}
@@ -234,6 +235,19 @@ async function loadSeriesTab(content) {
             body: JSON.stringify({ is_active: 0 }),
           });
           showToast('Series ended', 'success');
+          loadSeriesTab(content);
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      });
+    });
+
+    content.querySelectorAll('.delete-series').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Delete "${btn.dataset.name}" and ALL its data? This cannot be undone.`)) return;
+        try {
+          await api(`/series/${btn.dataset.id}`, { method: 'DELETE' });
+          showToast('Series deleted', 'success');
           loadSeriesTab(content);
         } catch (e) {
           showToast(e.message, 'error');

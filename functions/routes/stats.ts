@@ -35,9 +35,21 @@ statsRoutes.get('/game-state/:teamId', authRequired, async (c) => {
   return c.json({ game_state: state });
 });
 
-// Get all team game states (for dashboard)
+// Get all team game states (for dashboard or specific series)
 statsRoutes.get('/game-states', authRequired, async (c) => {
-  const states = await c.env.DB.prepare(`
+  const seriesId = c.req.query('series_id');
+
+  let seriesFilter: string;
+  const params: any[] = [];
+
+  if (seriesId) {
+    seriesFilter = 'bs.series_id = ?';
+    params.push(parseInt(seriesId));
+  } else {
+    seriesFilter = 'bs.series_id = (SELECT id FROM series WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1)';
+  }
+
+  const query = `
     SELECT bs.*,
       t.name as team_name,
       p1.display_name as first_base_name,
@@ -48,9 +60,13 @@ statsRoutes.get('/game-states', authRequired, async (c) => {
     LEFT JOIN players p1 ON bs.first_base = p1.id
     LEFT JOIN players p2 ON bs.second_base = p2.id
     LEFT JOIN players p3 ON bs.third_base = p3.id
-    WHERE bs.series_id = (SELECT id FROM series WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1)
-    ORDER BY bs.total_runs DESC
-  `).all();
+    WHERE ${seriesFilter}
+    ORDER BY bs.total_runs DESC`;
+
+  const stmt = params.length
+    ? c.env.DB.prepare(query).bind(...params)
+    : c.env.DB.prepare(query);
+  const states = await stmt.all();
   return c.json({ game_states: states.results });
 });
 
@@ -58,9 +74,9 @@ statsRoutes.get('/game-states', authRequired, async (c) => {
 statsRoutes.get('/leaderboard/teams', authRequired, async (c) => {
   const seriesId = c.req.query('series_id');
 
-  let seriesFilter = seriesId
-    ? `ab.series_id = ${parseInt(seriesId)}`
-    : `ab.series_id = (SELECT id FROM series WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1)`;
+  const seriesSubquery = seriesId
+    ? parseInt(seriesId).toString()
+    : `(SELECT id FROM series WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1)`;
 
   const teams = await c.env.DB.prepare(`
     SELECT t.id, t.name,
@@ -73,8 +89,8 @@ statsRoutes.get('/leaderboard/teams', authRequired, async (c) => {
       SUM(CASE WHEN ab.hit_type = 'home_run' THEN 1 ELSE 0 END) as home_runs
     FROM teams t
     LEFT JOIN base_state bs ON bs.team_id = t.id
-      AND bs.series_id = (SELECT id FROM series WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1)
-    LEFT JOIN at_bats ab ON ab.team_id = t.id AND ${seriesFilter}
+      AND bs.series_id = ${seriesSubquery}
+    LEFT JOIN at_bats ab ON ab.team_id = t.id AND ab.series_id = ${seriesSubquery}
     GROUP BY t.id
     ORDER BY total_runs DESC, total_bases DESC
   `).all();

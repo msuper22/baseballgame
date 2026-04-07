@@ -45,6 +45,21 @@ seriesRoutes.post('/', authRequired, adminRequired, async (c) => {
   return c.json({ series: { id: seriesId, name, start_date, end_date, is_active: 1 } }, 201);
 });
 
+// Delete series (admin) - cascades to at_bats and base_state
+seriesRoutes.delete('/:id', authRequired, adminRequired, async (c) => {
+  const id = c.req.param('id');
+
+  const series = await c.env.DB.prepare('SELECT id FROM series WHERE id = ?').bind(id).first();
+  if (!series) return c.json({ error: 'Series not found' }, 404);
+
+  // Delete associated data first, then the series
+  await c.env.DB.prepare('DELETE FROM at_bats WHERE series_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM base_state WHERE series_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM series WHERE id = ?').bind(id).run();
+
+  return c.json({ success: true });
+});
+
 // Update series (admin)
 seriesRoutes.put('/:id', authRequired, adminRequired, async (c) => {
   const id = c.req.param('id');

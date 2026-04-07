@@ -23,6 +23,7 @@ export function renderNav() {
       <div class="nav-links">
         <a href="#/" class="nav-link">Dashboard</a>
         <a href="#/leaderboard" class="nav-link">Leaderboard</a>
+        <a href="#/history" class="nav-link">History</a>
         ${logEventLink}
         ${adminLink}
         <span class="nav-user">${user?.display_name || user?.username}</span>
