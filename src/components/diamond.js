@@ -1,5 +1,5 @@
 /**
- * Renders an SVG baseball diamond with runners, team name, and stats.
+ * Renders a visually rich SVG baseball stadium with runners, team name, and stats.
  * @param {HTMLElement} container
  * @param {object} state - { team_name, first_base_name, second_base_name, third_base_name, total_runs, total_bases, team_id }
  */
@@ -11,70 +11,169 @@ export function renderDiamond(container, state) {
   const second = state.second_base_name || null;
   const third = state.third_base_name || null;
 
-  const firstClass = first ? 'base occupied' : 'base';
-  const secondClass = second ? 'base occupied' : 'base';
-  const thirdClass = third ? 'base occupied' : 'base';
-
   const teamColor = getTeamColor(state.team_id);
+  const teamColorLight = teamColor + '40';
+  const glowId = `glow-${state.team_id || 0}`;
+  const grassId = `grass-${state.team_id || 0}`;
+  const dirtId = `dirt-${state.team_id || 0}`;
+
+  function renderRunner(x, y, name, labelX, labelY, anchor) {
+    if (!name) return '';
+    return `
+      <g class="runner-group">
+        <circle cx="${x}" cy="${y}" r="18" fill="${teamColor}" opacity="0.25">
+          <animate attributeName="r" values="18;22;18" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.25;0.1;0.25" dur="2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="${x}" cy="${y}" r="12" fill="${teamColor}" filter="url(#${glowId})" opacity="0.9"/>
+        <circle cx="${x}" cy="${y}" r="7" fill="white" opacity="0.9"/>
+        <text x="${x}" y="${y + 3}" text-anchor="middle" font-size="7" font-weight="700" fill="${teamColor}">
+          ${getInitials(name)}
+        </text>
+        <rect x="${labelX - getTextWidth(name)/2 - 6}" y="${labelY - 10}" width="${getTextWidth(name) + 12}" height="18" rx="9"
+              fill="${teamColor}" opacity="0.9"/>
+        <text x="${labelX}" y="${labelY + 2}" text-anchor="${anchor}" font-size="10" font-weight="600" fill="white" class="runner-label">
+          ${name}
+        </text>
+      </g>`;
+  }
 
   container.innerHTML = `
     <div class="diamond-card" style="--team-color: ${teamColor}">
       <h3 class="diamond-team-name">${teamName}</h3>
-      <svg viewBox="0 0 300 280" class="diamond-svg">
+      <svg viewBox="0 0 340 320" class="diamond-svg" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <!-- Glow filter for runners -->
+          <filter id="${glowId}" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+            <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+          </filter>
+
+          <!-- Grass gradient -->
+          <radialGradient id="${grassId}" cx="50%" cy="45%" r="55%">
+            <stop offset="0%" stop-color="#3a9e5c"/>
+            <stop offset="60%" stop-color="#2d8a4e"/>
+            <stop offset="100%" stop-color="#1e6b3a"/>
+          </radialGradient>
+
+          <!-- Dirt gradient -->
+          <radialGradient id="${dirtId}" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#d4a84b"/>
+            <stop offset="100%" stop-color="#b8913d"/>
+          </radialGradient>
+
+          <!-- Outfield wall pattern -->
+          <linearGradient id="wall-${state.team_id || 0}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#1a3a1a"/>
+            <stop offset="100%" stop-color="#0d2a0d"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Stadium background -->
+        <rect x="0" y="0" width="340" height="320" fill="#0a1a10" rx="12"/>
+
+        <!-- Outfield wall -->
+        <path d="M 170 15 Q 320 50 310 195 L 280 215 Q 170 240 60 215 L 30 195 Q 20 50 170 15 Z"
+              fill="url(#wall-${state.team_id || 0})" stroke="#2a5a2a" stroke-width="2"/>
+
         <!-- Outfield grass -->
-        <path d="M 150 30 Q 280 80 270 200 L 150 250 L 30 200 Q 20 80 150 30 Z" fill="#2d8a4e" opacity="0.3"/>
+        <path d="M 170 28 Q 305 58 298 190 L 270 208 Q 170 230 70 208 L 42 190 Q 35 58 170 28 Z"
+              fill="url(#${grassId})"/>
 
-        <!-- Infield diamond -->
-        <polygon points="150,60 230,150 150,240 70,150" fill="#c4a35a" opacity="0.4" stroke="#8b7332" stroke-width="1.5"/>
+        <!-- Mowing stripes -->
+        <path d="M 170 28 Q 305 58 298 190 L 270 208 Q 170 230 70 208 L 42 190 Q 35 58 170 28 Z"
+              fill="none" stroke="#35a858" stroke-width="0.5" opacity="0.3"/>
+        <line x1="100" y1="60" x2="100" y2="200" stroke="#35a858" stroke-width="8" opacity="0.08"/>
+        <line x1="140" y1="40" x2="140" y2="210" stroke="#35a858" stroke-width="8" opacity="0.08"/>
+        <line x1="200" y1="40" x2="200" y2="210" stroke="#35a858" stroke-width="8" opacity="0.08"/>
+        <line x1="240" y1="60" x2="240" y2="200" stroke="#35a858" stroke-width="8" opacity="0.08"/>
 
-        <!-- Base paths -->
-        <line x1="150" y1="240" x2="230" y2="150" stroke="white" stroke-width="2" opacity="0.6"/>
-        <line x1="230" y1="150" x2="150" y2="60" stroke="white" stroke-width="2" opacity="0.6"/>
-        <line x1="150" y1="60" x2="70" y2="150" stroke="white" stroke-width="2" opacity="0.6"/>
-        <line x1="70" y1="150" x2="150" y2="240" stroke="white" stroke-width="2" opacity="0.6"/>
+        <!-- Infield dirt -->
+        <polygon points="170,95 255,180 170,268 85,180" fill="url(#${dirtId})" opacity="0.85"/>
+
+        <!-- Infield grass (center) -->
+        <circle cx="170" cy="182" r="48" fill="#2d8a4e" opacity="0.9"/>
+
+        <!-- Base paths (white chalk lines) -->
+        <line x1="170" y1="268" x2="255" y2="180" stroke="white" stroke-width="2.5" opacity="0.85"/>
+        <line x1="255" y1="180" x2="170" y2="95" stroke="white" stroke-width="2.5" opacity="0.85"/>
+        <line x1="170" y1="95" x2="85" y2="180" stroke="white" stroke-width="2.5" opacity="0.85"/>
+        <line x1="85" y1="180" x2="170" y2="268" stroke="white" stroke-width="2.5" opacity="0.85"/>
+
+        <!-- Batter's box area -->
+        <rect x="158" y="267" width="24" height="30" fill="#d4a84b" opacity="0.6" rx="2"/>
+
+        <!-- Foul lines extending to outfield -->
+        <line x1="170" y1="268" x2="42" y2="190" stroke="white" stroke-width="1.5" opacity="0.5"/>
+        <line x1="170" y1="268" x2="298" y2="190" stroke="white" stroke-width="1.5" opacity="0.5"/>
 
         <!-- Pitcher's mound -->
-        <circle cx="150" cy="155" r="6" fill="#c4a35a" stroke="#8b7332" stroke-width="1"/>
+        <circle cx="170" cy="182" r="10" fill="#d4a84b" opacity="0.9"/>
+        <rect x="166" y="180" width="8" height="3" fill="white" rx="1" opacity="0.9"/>
 
         <!-- Home plate -->
-        <polygon points="150,240 143,233 143,227 157,227 157,233" fill="white" stroke="#666" stroke-width="1"/>
+        <polygon points="170,268 163,262 163,256 177,256 177,262" fill="white" stroke="#999" stroke-width="1"/>
 
         <!-- First base -->
-        <rect x="220" y="140" width="20" height="20" rx="2" transform="rotate(45, 230, 150)"
-              class="${firstClass}" fill="${first ? teamColor : 'white'}" stroke="#666" stroke-width="1.5"/>
-        ${first ? `<text x="258" y="148" class="runner-name" text-anchor="start" font-size="11" fill="white">${first}</text>` : ''}
+        <rect x="245" y="170" width="18" height="18" rx="2" transform="rotate(45, 255, 180)"
+              fill="${first ? teamColor : 'white'}" stroke="${first ? 'white' : '#999'}" stroke-width="${first ? 2 : 1}"/>
 
         <!-- Second base -->
-        <rect x="140" y="50" width="20" height="20" rx="2" transform="rotate(45, 150, 60)"
-              class="${secondClass}" fill="${second ? teamColor : 'white'}" stroke="#666" stroke-width="1.5"/>
-        ${second ? `<text x="150" y="38" class="runner-name" text-anchor="middle" font-size="11" fill="white">${second}</text>` : ''}
+        <rect x="160" y="85" width="18" height="18" rx="2" transform="rotate(45, 170, 95)"
+              fill="${second ? teamColor : 'white'}" stroke="${second ? 'white' : '#999'}" stroke-width="${second ? 2 : 1}"/>
 
         <!-- Third base -->
-        <rect x="60" y="140" width="20" height="20" rx="2" transform="rotate(45, 70, 150)"
-              class="${thirdClass}" fill="${third ? teamColor : 'white'}" stroke="#666" stroke-width="1.5"/>
-        ${third ? `<text x="42" y="148" class="runner-name" text-anchor="end" font-size="11" fill="white">${third}</text>` : ''}
+        <rect x="75" y="170" width="18" height="18" rx="2" transform="rotate(45, 85, 180)"
+              fill="${third ? teamColor : 'white'}" stroke="${third ? 'white' : '#999'}" stroke-width="${third ? 2 : 1}"/>
 
-        <!-- Labels -->
-        <text x="240" y="175" font-size="9" fill="#ccc" text-anchor="middle">1B</text>
-        <text x="150" y="80" font-size="9" fill="#ccc" text-anchor="middle">2B</text>
-        <text x="60" y="175" font-size="9" fill="#ccc" text-anchor="middle">3B</text>
-        <text x="150" y="264" font-size="9" fill="#ccc" text-anchor="middle">HOME</text>
+        <!-- Base labels when empty -->
+        ${!first ? `<text x="270" y="200" font-size="9" fill="#aaa" text-anchor="middle" opacity="0.6">1B</text>` : ''}
+        ${!second ? `<text x="170" y="115" font-size="9" fill="#aaa" text-anchor="middle" opacity="0.6">2B</text>` : ''}
+        ${!third ? `<text x="70" y="200" font-size="9" fill="#aaa" text-anchor="middle" opacity="0.6">3B</text>` : ''}
+        <text x="170" y="305" font-size="9" fill="#aaa" text-anchor="middle" opacity="0.6">HOME</text>
+
+        <!-- Runners -->
+        ${renderRunner(255, 180, first, 290, 170, 'middle')}
+        ${renderRunner(170, 95, second, 170, 70, 'middle')}
+        ${renderRunner(85, 180, third, 50, 170, 'middle')}
+
+        <!-- Stadium lights effect (corner dots) -->
+        <circle cx="30" cy="20" r="3" fill="white" opacity="0.15"/>
+        <circle cx="310" cy="20" r="3" fill="white" opacity="0.15"/>
+        <circle cx="20" cy="180" r="2" fill="white" opacity="0.1"/>
+        <circle cx="320" cy="180" r="2" fill="white" opacity="0.1"/>
       </svg>
+
       <div class="diamond-stats">
         <div class="stat">
           <span class="stat-value">${runs}</span>
           <span class="stat-label">Runs</span>
         </div>
-        <div class="stat">
+        <div class="stat stat-divider">
           <span class="stat-value">${totalBases}</span>
           <span class="stat-label">Total Bases</span>
         </div>
         <div class="stat">
-          <span class="stat-value">${[first, second, third].filter(Boolean).length}</span>
+          <span class="stat-value">${countRunners(first, second, third)}</span>
           <span class="stat-label">On Base</span>
         </div>
       </div>
     </div>`;
+}
+
+function countRunners(...runners) {
+  return runners.filter(Boolean).length;
+}
+
+function getInitials(name) {
+  if (!name) return '';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function getTextWidth(text) {
+  return text ? text.length * 6 : 0;
 }
 
 const TEAM_COLORS = ['#1e88e5', '#e53935', '#43a047', '#fb8c00', '#8e24aa', '#00acc1'];
