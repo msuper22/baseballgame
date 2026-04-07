@@ -5,6 +5,7 @@ import { showToast } from '../components/toast.js';
 
 let refreshInterval = null;
 let lastKnownRuns = {};
+let activeSeriesId = null;
 
 export async function dashboardPage(app) {
   if (!isLoggedIn()) { navigate('/login'); return; }
@@ -56,11 +57,13 @@ async function loadDashboard() {
     try {
       const seriesRes = await api('/series/active');
       const s = seriesRes.series;
+      activeSeriesId = s.id;
       const infoEl = document.getElementById('series-info');
       if (infoEl) {
         infoEl.innerHTML = `<span class="series-name">${s.name}</span> <span class="series-dates">${s.start_date} - ${s.end_date}</span>`;
       }
     } catch {
+      activeSeriesId = null;
       const infoEl = document.getElementById('series-info');
       if (infoEl) infoEl.innerHTML = '<span class="warn">No active series.</span>';
     }
@@ -155,7 +158,8 @@ async function loadHighlights() {
 
 async function loadRecentPlays() {
   try {
-    const playsRes = await api('/at-bats?limit=10');
+    const seriesFilter = activeSeriesId ? `&series_id=${activeSeriesId}` : '';
+    const playsRes = await api(`/at-bats?limit=10${seriesFilter}`);
     const recentDiv = document.getElementById('recent-plays');
     if (!recentDiv) return;
     if (playsRes.at_bats?.length) {
