@@ -3,11 +3,8 @@ import { showToast } from '../components/toast.js';
 import { playBatCrack, playRunCelebration, playError } from '../sounds.js';
 import { launchConfetti } from '../confetti.js';
 
-/**
- * Renders the "log production event" form.
- * @param {HTMLElement} container
- * @param {object} options - { onSuccess: callback }
- */
+let lastEvent = null; // Track last event for undo
+
 export async function renderEventForm(container, options = {}) {
   const user = getUser();
   let players = [];
@@ -20,7 +17,6 @@ export async function renderEventForm(container, options = {}) {
     return;
   }
 
-  // If player role, only show self. Mods/admins see all.
   const canLogForOthers = isMod();
   const filteredPlayers = canLogForOthers ? players : players.filter(p => p.id === user.id);
 
@@ -60,6 +56,7 @@ export async function renderEventForm(container, options = {}) {
         </button>
       </div>
       <div id="event-result" class="event-result"></div>
+      <div id="undo-container"></div>
     </div>`;
 
   container.querySelectorAll('.hit-btn').forEach(btn => {
@@ -90,8 +87,13 @@ export async function renderEventForm(container, options = {}) {
         showToast(msg, 'success');
         resultDiv.innerHTML = `<p class="success">${msg}</p>`;
 
-        // Clear lead ID for next entry
         document.getElementById('event-lead-id').value = '';
+
+        // Track for undo (only own events)
+        if (playerId === user.id) {
+          lastEvent = { ...ab, timestamp: Date.now() };
+          showUndoButton();
+        }
 
         // Always play bat crack for the hit
         const intensity = { single: 1, double: 2, triple: 3, home_run: 3 }[hitType] || 1;
@@ -114,5 +116,55 @@ export async function renderEventForm(container, options = {}) {
         btn.disabled = false;
       }
     });
+  });
+}
+
+function showUndoButton() {
+  const container = document.getElementById('undo-container');
+  if (!container || !lastEvent) return;
+
+  const updateTimer = () => {
+    const elapsed = Date.now() - lastEvent.timestamp;
+    const remaining = Math.max(0, 120 - Math.floor(elapsed / 1000));
+    if (remaining <= 0) {
+      container.innerHTML = '';
+      lastEvent = null;
+      return;
+    }
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    const timerEl = container.querySelector('.undo-timer');
+    if (timerEl) timerEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  container.innerHTML = `
+    <div class="undo-bar">
+      <span>Last: ${lastEvent.hit_type.replace('_', ' ')}</span>
+      <span class="undo-timer">2:00</span>
+      <button id="undo-btn" class="btn btn-sm btn-danger">Undo</button>
+    </div>`;
+
+  const interval = setInterval(updateTimer, 1000);
+  updateTimer();
+
+  // Auto-clear after 2 min
+  setTimeout(() => {
+    clearInterval(interval);
+    container.innerHTML = '';
+    lastEvent = null;
+  }, 120000);
+
+  document.getElementById('undo-btn')?.addEventListener('click', async () => {
+    try {
+      await api('/at-bats/undo-last', { method: 'DELETE' });
+      showToast('Event undone!', 'success');
+      container.innerHTML = '';
+      clearInterval(interval);
+      lastEvent = null;
+      const resultDiv = document.getElementById('event-result');
+      if (resultDiv) resultDiv.innerHTML = '<p class="warn">Last event was undone.</p>';
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
   });
 }

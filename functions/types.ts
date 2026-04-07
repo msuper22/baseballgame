@@ -27,6 +27,7 @@ export interface Series {
   start_date: string;
   end_date: string;
   is_active: number;
+  is_locked: number;
   created_at: string;
 }
 

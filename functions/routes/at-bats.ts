@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { Env, HitType, HIT_BASES, AtBat } from '../types';
 import { authRequired, modRequired, adminRequired } from '../middleware/auth';
 import { simulateAtBat, replayAtBats, RunnerState } from '../services/simulation';
+import { logAudit } from '../services/audit';
 
 export const atBatRoutes = new Hono<{ Bindings: Env }>();
 
@@ -26,9 +27,10 @@ atBatRoutes.post('/', authRequired, async (c) => {
 
   // Get active series
   const series = await c.env.DB.prepare(
-    'SELECT id FROM series WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1'
-  ).first<{ id: number }>();
+    'SELECT id, is_locked FROM series WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1'
+  ).first<{ id: number; is_locked: number }>();
   if (!series) return c.json({ error: 'No active series' }, 400);
+  if (series.is_locked) return c.json({ error: 'This series is locked. No new events can be logged.' }, 403);
 
   // Get player's team
   const player = await c.env.DB.prepare(
@@ -62,7 +64,7 @@ atBatRoutes.post('/', authRequired, async (c) => {
   const bases = HIT_BASES[hit_type as HitType];
 
   // Insert at-bat record
-  await c.env.DB.prepare(
+  const insertResult = await c.env.DB.prepare(
     `INSERT INTO at_bats (series_id, player_id, team_id, hit_type, bases, runs_scored, description, entered_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
@@ -80,11 +82,23 @@ atBatRoutes.post('/', authRequired, async (c) => {
     result.runsScored, bases, series.id, player.team_id
   ).run();
 
+  // Log audit
+  await logAudit(c.env.DB, user.sub, 'log_event', 'at_bat', insertResult.meta.last_row_id as number,
+    `${player.display_name} hit ${hit_type} (${result.runsScored} runs)`);
+
   // Fetch updated base state with player names
   const updatedState = await getBaseStateWithNames(c.env.DB, series.id, player.team_id);
 
   return c.json({
-    at_bat: { player_name: player.display_name, hit_type, bases, runs_scored: result.runsScored },
+    at_bat: {
+      id: insertResult.meta.last_row_id,
+      player_id: player.id,
+      player_name: player.display_name,
+      hit_type,
+      bases,
+      runs_scored: result.runsScored,
+      created_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    },
     base_state: updatedState,
     scoring_players: result.scoringPlayerIds,
   }, 201);
@@ -95,6 +109,8 @@ atBatRoutes.get('/', authRequired, async (c) => {
   const seriesId = c.req.query('series_id');
   const teamId = c.req.query('team_id');
   const playerId = c.req.query('player_id');
+  const limit = parseInt(c.req.query('limit') || '100');
+  const minRuns = c.req.query('min_runs');
 
   let query = `SELECT ab.*, p.display_name as player_name, t.name as team_name
                FROM at_bats ab
@@ -106,8 +122,9 @@ atBatRoutes.get('/', authRequired, async (c) => {
   if (seriesId) { query += ' AND ab.series_id = ?'; params.push(seriesId); }
   if (teamId) { query += ' AND ab.team_id = ?'; params.push(teamId); }
   if (playerId) { query += ' AND ab.player_id = ?'; params.push(playerId); }
+  if (minRuns) { query += ' AND ab.runs_scored >= ?'; params.push(parseInt(minRuns)); }
 
-  query += ' ORDER BY ab.created_at DESC LIMIT 100';
+  query += ` ORDER BY ab.created_at DESC LIMIT ${Math.min(limit, 500)}`;
 
   const stmt = params.length
     ? c.env.DB.prepare(query).bind(...params)
@@ -116,9 +133,100 @@ atBatRoutes.get('/', authRequired, async (c) => {
   return c.json({ at_bats: atBats.results });
 });
 
+// Player self-undo: delete own last event within 2 minutes
+atBatRoutes.delete('/undo-last', authRequired, async (c) => {
+  const user = c.get('user');
+
+  // Find player's most recent at-bat
+  const lastAb = await c.env.DB.prepare(
+    `SELECT * FROM at_bats WHERE player_id = ? ORDER BY created_at DESC LIMIT 1`
+  ).bind(user.sub).first<AtBat>();
+
+  if (!lastAb) return c.json({ error: 'No events to undo' }, 404);
+
+  // Check 2-minute window
+  const createdAt = new Date(lastAb.created_at + 'Z').getTime();
+  const now = Date.now();
+  const twoMinutes = 2 * 60 * 1000;
+  if (now - createdAt > twoMinutes) {
+    return c.json({ error: 'Undo window expired (2 minutes)' }, 403);
+  }
+
+  // Delete it
+  await c.env.DB.prepare('DELETE FROM at_bats WHERE id = ?').bind(lastAb.id).run();
+
+  // Replay all remaining at-bats for this team+series
+  const remaining = await c.env.DB.prepare(
+    'SELECT player_id, hit_type FROM at_bats WHERE series_id = ? AND team_id = ? ORDER BY created_at ASC'
+  ).bind(lastAb.series_id, lastAb.team_id).all();
+
+  const replayed = replayAtBats(
+    remaining.results as { player_id: number; hit_type: HitType }[]
+  );
+
+  await c.env.DB.prepare(
+    `UPDATE base_state SET first_base = ?, second_base = ?, third_base = ?,
+     total_runs = ?, total_bases = ?
+     WHERE series_id = ? AND team_id = ?`
+  ).bind(
+    replayed.bases.first, replayed.bases.second, replayed.bases.third,
+    replayed.totalRuns, replayed.totalBases, lastAb.series_id, lastAb.team_id
+  ).run();
+
+  await logAudit(c.env.DB, user.sub, 'undo_event', 'at_bat', lastAb.id,
+    `Self-undo: ${lastAb.hit_type || 'unknown'}`);
+
+  return c.json({ success: true, undone: lastAb });
+});
+
+// Admin edit at-bat (change hit type or player)
+atBatRoutes.put('/:id', authRequired, adminRequired, async (c) => {
+  const id = c.req.param('id');
+  const { hit_type, player_id, description } = await c.req.json();
+  const user = c.get('user');
+
+  const atBat = await c.env.DB.prepare('SELECT * FROM at_bats WHERE id = ?').bind(id).first<AtBat>();
+  if (!atBat) return c.json({ error: 'At-bat not found' }, 404);
+
+  const validTypes: HitType[] = ['single', 'double', 'triple', 'home_run'];
+  const newHitType = hit_type && validTypes.includes(hit_type) ? hit_type : atBat.hit_type;
+  const newPlayerId = player_id || atBat.player_id;
+  const newDesc = description !== undefined ? description : atBat.description;
+  const newBases = HIT_BASES[newHitType as HitType];
+
+  // Update the at-bat record
+  await c.env.DB.prepare(
+    `UPDATE at_bats SET hit_type = ?, bases = ?, player_id = ?, description = ? WHERE id = ?`
+  ).bind(newHitType, newBases, newPlayerId, newDesc, id).run();
+
+  // Replay all at-bats for this team+series to recalculate state
+  const remaining = await c.env.DB.prepare(
+    'SELECT player_id, hit_type FROM at_bats WHERE series_id = ? AND team_id = ? ORDER BY created_at ASC'
+  ).bind(atBat.series_id, atBat.team_id).all();
+
+  const replayed = replayAtBats(
+    remaining.results as { player_id: number; hit_type: HitType }[]
+  );
+
+  await c.env.DB.prepare(
+    `UPDATE base_state SET first_base = ?, second_base = ?, third_base = ?,
+     total_runs = ?, total_bases = ?
+     WHERE series_id = ? AND team_id = ?`
+  ).bind(
+    replayed.bases.first, replayed.bases.second, replayed.bases.third,
+    replayed.totalRuns, replayed.totalBases, atBat.series_id, atBat.team_id
+  ).run();
+
+  await logAudit(c.env.DB, user.sub, 'edit_event', 'at_bat', parseInt(id as string),
+    `Changed from ${atBat.hit_type} to ${newHitType}`);
+
+  return c.json({ success: true });
+});
+
 // Delete at-bat (admin undo) - replays all events to rebuild state
 atBatRoutes.delete('/:id', authRequired, adminRequired, async (c) => {
   const id = c.req.param('id');
+  const user = c.get('user');
 
   // Get the at-bat to find series_id and team_id
   const atBat = await c.env.DB.prepare(
@@ -147,6 +255,9 @@ atBatRoutes.delete('/:id', authRequired, adminRequired, async (c) => {
     replayed.bases.first, replayed.bases.second, replayed.bases.third,
     replayed.totalRuns, replayed.totalBases, atBat.series_id, atBat.team_id
   ).run();
+
+  await logAudit(c.env.DB, user.sub, 'delete_event', 'at_bat', parseInt(id as string),
+    `Deleted ${atBat.hit_type} by player ${atBat.player_id}`);
 
   return c.json({ success: true, new_state: replayed });
 });

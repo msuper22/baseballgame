@@ -76,6 +76,50 @@ playerRoutes.put('/:id', authRequired, adminRequired, async (c) => {
   return c.json({ success: true });
 });
 
+// Bulk import players (admin)
+playerRoutes.post('/bulk', authRequired, adminRequired, async (c) => {
+  const { players } = await c.req.json();
+  if (!Array.isArray(players) || !players.length) {
+    return c.json({ error: 'players array required' }, 400);
+  }
+
+  const results: { display_name: string; status: string; error?: string }[] = [];
+
+  for (const p of players) {
+    if (!p.username || !p.display_name || !p.team_id) {
+      results.push({ display_name: p.display_name || 'unknown', status: 'error', error: 'Missing required fields' });
+      continue;
+    }
+
+    try {
+      const existing = await c.env.DB.prepare('SELECT id FROM players WHERE username = ?').bind(p.username).first();
+      if (existing) {
+        results.push({ display_name: p.display_name, status: 'skipped', error: 'Username exists' });
+        continue;
+      }
+
+      const password = p.password || p.username; // Default password = username
+      const hashed = await hashPassword(password);
+      await c.env.DB.prepare(
+        'INSERT INTO players (username, password, display_name, team_id, role) VALUES (?, ?, ?, ?, ?)'
+      ).bind(p.username, hashed, p.display_name, p.team_id, p.role || 'player').run();
+
+      results.push({ display_name: p.display_name, status: 'created' });
+    } catch (e: any) {
+      results.push({ display_name: p.display_name, status: 'error', error: e.message });
+    }
+  }
+
+  return c.json({
+    results,
+    summary: {
+      created: results.filter(r => r.status === 'created').length,
+      skipped: results.filter(r => r.status === 'skipped').length,
+      errors: results.filter(r => r.status === 'error').length,
+    },
+  });
+});
+
 // Delete (deactivate) player (admin)
 playerRoutes.delete('/:id', authRequired, adminRequired, async (c) => {
   const id = c.req.param('id');

@@ -34,6 +34,7 @@ export function renderNav() {
         <a href="#/leaderboard" class="nav-link">Leaderboard</a>
         <a href="#/history" class="nav-link">History</a>
         <a href="#/rules" class="nav-link">Rules</a>
+        <a href="#/compare" class="nav-link">Compare</a>
         ${logEventLink}
         ${profileLink}
         ${adminLink}

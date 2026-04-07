@@ -32,10 +32,21 @@ export async function leaderboardPage(app) {
     try {
       if (tabName === 'teams') {
         const res = await api('/stats/leaderboard/teams');
-        content.innerHTML = '<div id="team-table"></div>';
+        content.innerHTML = `
+          <div class="export-bar">
+            <button id="export-teams-csv" class="btn btn-sm">&#128229; Export CSV</button>
+          </div>
+          <div id="team-table"></div>`;
+
+        // Add computed stats
+        const teams = res.teams.map(t => ({
+          ...t,
+          slg: t.total_at_bats > 0 ? (t.total_bases / t.total_at_bats).toFixed(3) : '.000',
+        }));
+
         renderStatsTable(
           document.getElementById('team-table'),
-          res.teams,
+          teams,
           [
             { key: 'name', label: 'Team', sortable: true },
             { key: 'total_runs', label: 'Runs', sortable: true },
@@ -45,15 +56,32 @@ export async function leaderboardPage(app) {
             { key: 'doubles', label: '2B', sortable: true },
             { key: 'triples', label: '3B', sortable: true },
             { key: 'home_runs', label: 'HR', sortable: true },
+            { key: 'slg', label: 'SLG', sortable: true },
           ],
           'total_runs'
         );
+
+        document.getElementById('export-teams-csv')?.addEventListener('click', () => {
+          downloadCsv('/stats/export/teams', 'team-stats.csv');
+        });
       } else {
         const res = await api('/stats/leaderboard/players');
-        content.innerHTML = '<div id="player-table"></div>';
+        content.innerHTML = `
+          <div class="export-bar">
+            <button id="export-players-csv" class="btn btn-sm">&#128229; Export CSV</button>
+          </div>
+          <div id="player-table"></div>`;
+
+        // Add computed stats
+        const players = res.players.map(p => ({
+          ...p,
+          avg: p.total_at_bats > 0 ? ((p.singles + p.doubles + p.triples + p.home_runs) / p.total_at_bats).toFixed(3) : '.000',
+          slg: p.total_at_bats > 0 ? (p.total_bases / p.total_at_bats).toFixed(3) : '.000',
+        }));
+
         renderStatsTable(
           document.getElementById('player-table'),
-          res.players,
+          players,
           [
             { key: 'display_name', label: 'Player', sortable: true, link: (row) => `#/player/${row.id}` },
             { key: 'team_name', label: 'Team', sortable: true },
@@ -64,9 +92,15 @@ export async function leaderboardPage(app) {
             { key: 'doubles', label: '2B', sortable: true },
             { key: 'triples', label: '3B', sortable: true },
             { key: 'home_runs', label: 'HR', sortable: true },
+            { key: 'avg', label: 'AVG', sortable: true },
+            { key: 'slg', label: 'SLG', sortable: true },
           ],
           'total_bases'
         );
+
+        document.getElementById('export-players-csv')?.addEventListener('click', () => {
+          downloadCsv('/stats/export/players', 'player-stats.csv');
+        });
       }
     } catch (e) {
       showToast(e.message, 'error');
@@ -75,4 +109,23 @@ export async function leaderboardPage(app) {
   }
 
   loadTab('teams');
+}
+
+async function downloadCsv(endpoint, filename) {
+  try {
+    const token = localStorage.getItem('token');
+    const resp = await fetch(`/api${endpoint}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('CSV downloaded!', 'success');
+  } catch (e) {
+    showToast('Export failed', 'error');
+  }
 }

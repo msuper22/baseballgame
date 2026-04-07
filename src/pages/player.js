@@ -21,6 +21,11 @@ export async function playerPage(app, params) {
     const res = await api(`/stats/player/${playerId}`);
     const { player, career, series_stats } = res;
 
+    const hits = (career.singles || 0) + (career.doubles || 0) + (career.triples || 0) + (career.home_runs || 0);
+    const avg = career.total_at_bats ? (hits / career.total_at_bats).toFixed(3) : '.000';
+    const slg = career.total_at_bats ? (career.total_bases / career.total_at_bats).toFixed(3) : '.000';
+    const tbPerAb = career.total_at_bats ? (career.total_bases / career.total_at_bats).toFixed(2) : '0.00';
+
     // Player info header
     document.getElementById('player-header').innerHTML = `
       <div class="player-info-card">
@@ -37,11 +42,11 @@ export async function playerPage(app, params) {
       <div class="player-career-stats">
         <div class="player-stat-box">
           <span class="player-stat-value">${career.total_at_bats || 0}</span>
-          <span class="player-stat-label">At Bats</span>
+          <span class="player-stat-label">AB</span>
         </div>
         <div class="player-stat-box">
           <span class="player-stat-value">${career.total_bases || 0}</span>
-          <span class="player-stat-label">Total Bases</span>
+          <span class="player-stat-label">TB</span>
         </div>
         <div class="player-stat-box">
           <span class="player-stat-value">${career.runs_batted_in || 0}</span>
@@ -63,9 +68,13 @@ export async function playerPage(app, params) {
           <span class="player-stat-value">${career.home_runs || 0}</span>
           <span class="player-stat-label">HR</span>
         </div>
-        <div class="player-stat-box">
-          <span class="player-stat-value">${career.total_at_bats ? (career.total_bases / career.total_at_bats).toFixed(2) : '0.00'}</span>
-          <span class="player-stat-label">TB/AB</span>
+        <div class="player-stat-box player-stat-highlight">
+          <span class="player-stat-value">${avg}</span>
+          <span class="player-stat-label">AVG</span>
+        </div>
+        <div class="player-stat-box player-stat-highlight">
+          <span class="player-stat-value">${slg}</span>
+          <span class="player-stat-label">SLG</span>
         </div>
       </div>
     `;
@@ -81,10 +90,11 @@ export async function playerPage(app, params) {
           ...s,
           series_label: s.series_name + (s.is_active ? ' *' : ''),
           dates: s.start_date + ' - ' + s.end_date,
+          avg: s.total_at_bats ? (((s.singles||0) + (s.doubles||0) + (s.triples||0) + (s.home_runs||0)) / s.total_at_bats).toFixed(3) : '.000',
+          slg: s.total_at_bats ? (s.total_bases / s.total_at_bats).toFixed(3) : '.000',
         })),
         [
           { key: 'series_label', label: 'Series', sortable: true },
-          { key: 'dates', label: 'Dates', sortable: false },
           { key: 'total_at_bats', label: 'AB', sortable: true },
           { key: 'total_bases', label: 'TB', sortable: true },
           { key: 'runs_batted_in', label: 'RBI', sortable: true },
@@ -92,6 +102,8 @@ export async function playerPage(app, params) {
           { key: 'doubles', label: '2B', sortable: true },
           { key: 'triples', label: '3B', sortable: true },
           { key: 'home_runs', label: 'HR', sortable: true },
+          { key: 'avg', label: 'AVG', sortable: true },
+          { key: 'slg', label: 'SLG', sortable: true },
         ],
         'total_bases'
       );

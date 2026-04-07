@@ -27,9 +27,14 @@ export async function teamPage(app, params) {
     const playersRes = await api(`/stats/leaderboard/players?team_id=${teamId}`);
     const rosterDiv = document.getElementById('team-roster');
     rosterDiv.innerHTML = '<h2>Player Stats</h2><div id="roster-table"></div>';
+    const rosterPlayers = playersRes.players.map(p => ({
+      ...p,
+      avg: p.total_at_bats > 0 ? ((p.singles + p.doubles + p.triples + p.home_runs) / p.total_at_bats).toFixed(3) : '.000',
+      slg: p.total_at_bats > 0 ? (p.total_bases / p.total_at_bats).toFixed(3) : '.000',
+    }));
     renderStatsTable(
       document.getElementById('roster-table'),
-      playersRes.players,
+      rosterPlayers,
       [
         { key: 'display_name', label: 'Player', sortable: true, link: (row) => `#/player/${row.id}` },
         { key: 'total_at_bats', label: 'AB', sortable: true },
@@ -39,6 +44,8 @@ export async function teamPage(app, params) {
         { key: 'doubles', label: '2B', sortable: true },
         { key: 'triples', label: '3B', sortable: true },
         { key: 'home_runs', label: 'HR', sortable: true },
+        { key: 'avg', label: 'AVG', sortable: true },
+        { key: 'slg', label: 'SLG', sortable: true },
       ],
       'total_bases'
     );

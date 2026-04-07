@@ -11,6 +11,7 @@ import { historyPage } from './pages/history.js';
 import { seriesDetailPage } from './pages/series-detail.js';
 import { rulesPage } from './pages/rules.js';
 import { playerPage } from './pages/player.js';
+import { comparePage } from './pages/compare.js';
 import { initTheme } from './theme.js';
 import './style.css';
 
@@ -28,6 +29,7 @@ route('/history', historyPage);
 route('/rules', rulesPage);
 route('/series/:id', seriesDetailPage);
 route('/log-event', logEventPage);
+route('/compare', comparePage);
 route('/admin', adminPage);
 
 // Init

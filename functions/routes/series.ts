@@ -71,6 +71,7 @@ seriesRoutes.put('/:id', authRequired, adminRequired, async (c) => {
   if (body.start_date !== undefined) { updates.push('start_date = ?'); values.push(body.start_date); }
   if (body.end_date !== undefined) { updates.push('end_date = ?'); values.push(body.end_date); }
   if (body.is_active !== undefined) { updates.push('is_active = ?'); values.push(body.is_active); }
+  if (body.is_locked !== undefined) { updates.push('is_locked = ?'); values.push(body.is_locked); }
 
   if (updates.length === 0) return c.json({ error: 'No fields to update' }, 400);
 

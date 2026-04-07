@@ -85,12 +85,20 @@ export async function rulesPage(app) {
       </div>
 
       <div class="rules-section">
+        <h2>Undo</h2>
+        <p>Made a mistake? You can <strong>undo your last event within 2 minutes</strong> of logging it. An "Undo" button will appear below the hit buttons after you log an event. After 2 minutes, only an admin can correct or remove events.</p>
+      </div>
+
+      <div class="rules-section">
         <h2>Stats & Tracking</h2>
         <ul class="rules-list">
-          <li><strong>Dashboard:</strong> See all team diamonds with live runner positions and scores.</li>
+          <li><strong>Dashboard:</strong> See all team diamonds with live runner positions and scores. Auto-refreshes every 30 seconds. You'll get notified when teams score.</li>
           <li><strong>Team Page:</strong> Click any team's diamond to see player stats and the full event log.</li>
           <li><strong>Leaderboard:</strong> View team standings and individual player stats, sorted by any column.</li>
           <li><strong>History:</strong> Browse past series and see final scores from previous competitions.</li>
+          <li><strong>Player Profiles:</strong> Click any player's name to view their career stats, per-series breakdown, and event log.</li>
+          <li><strong>Head-to-Head:</strong> Compare two teams side-by-side on the <a href="#/compare" class="table-link">Compare</a> page.</li>
+          <li><strong>Export:</strong> Download stats as CSV from the Leaderboard page.</li>
         </ul>
       </div>
 
@@ -101,15 +109,31 @@ export async function rulesPage(app) {
           <li><strong>Total Bases (TB):</strong> Sum of all bases from your hits. Shows individual production.</li>
           <li><strong>At Bats (AB):</strong> Total events logged.</li>
           <li><strong>RBI (Runs Batted In):</strong> Runs that scored as a result of your specific hits.</li>
+          <li><strong>AVG (Batting Average):</strong> Hits divided by At Bats. In our game, every event is a hit, so AVG shows how consistently you're logging events. A player with 10 hits in 10 AB has a 1.000 AVG.</li>
+          <li><strong>SLG (Slugging Percentage):</strong> Total Bases divided by At Bats. Measures the <em>quality</em> of your hits. A higher SLG means you're logging more valuable production events (doubles, triples, HRs). A player who only hits singles has a 1.000 SLG, while someone averaging doubles has a 2.000 SLG.</li>
+        </ul>
+      </div>
+
+      <div class="rules-section">
+        <h2>Awards</h2>
+        <p>When a series ends, awards are automatically calculated and displayed on the series detail page:</p>
+        <ul class="rules-list">
+          <li><strong>Champion:</strong> Team with the most runs.</li>
+          <li><strong>RBI Leader:</strong> Player who drove in the most runs.</li>
+          <li><strong>TB Leader:</strong> Player with the most total bases.</li>
+          <li><strong>HR Leader:</strong> Player with the most home runs.</li>
+          <li><strong>Hustle Award:</strong> Player with the most at-bats (most events logged).</li>
+          <li><strong>Best SLG:</strong> Player with the highest slugging percentage (min 5 AB).</li>
+          <li><strong>Grand Slam Club:</strong> Players who hit grand slams (4 runs on a single play).</li>
         </ul>
       </div>
 
       <div class="rules-section">
         <h2>Roles</h2>
         <ul class="rules-list">
-          <li><strong>Player:</strong> Can log events for themselves and view all stats.</li>
+          <li><strong>Player:</strong> Can log events for themselves, undo within 2 minutes, and view all stats.</li>
           <li><strong>Mod:</strong> Can log events for any player on any team.</li>
-          <li><strong>Admin:</strong> Full control — manage teams, players, series, and delete events.</li>
+          <li><strong>Admin:</strong> Full control — manage teams, players, series, edit/delete events, lock series, view audit log, and bulk import players.</li>
         </ul>
       </div>
     </div>`;

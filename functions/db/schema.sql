@@ -59,3 +59,15 @@ CREATE INDEX IF NOT EXISTS idx_at_bats_series ON at_bats(series_id);
 CREATE INDEX IF NOT EXISTS idx_at_bats_player ON at_bats(player_id);
 CREATE INDEX IF NOT EXISTS idx_at_bats_team   ON at_bats(team_id, series_id);
 CREATE INDEX IF NOT EXISTS idx_players_team   ON players(team_id);
+
+-- Audit log for tracking actions
+CREATE TABLE IF NOT EXISTS audit_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES players(id),
+  action      TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id   INTEGER,
+  details     TEXT,
+  created_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);

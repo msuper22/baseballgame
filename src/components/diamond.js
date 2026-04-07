@@ -146,11 +146,11 @@ export function renderDiamond(container, state) {
 
       <div class="diamond-stats">
         <div class="stat">
-          <span class="stat-value">${runs}</span>
+          <span class="stat-value stat-animate" data-target="${runs}">0</span>
           <span class="stat-label">Runs</span>
         </div>
         <div class="stat stat-divider">
-          <span class="stat-value">${totalBases}</span>
+          <span class="stat-value stat-animate" data-target="${totalBases}">0</span>
           <span class="stat-label">Total Bases</span>
         </div>
         <div class="stat">
@@ -159,6 +159,27 @@ export function renderDiamond(container, state) {
         </div>
       </div>
     </div>`;
+
+  // Animate the stat counters
+  requestAnimationFrame(() => {
+    container.querySelectorAll('.stat-animate').forEach(el => {
+      const target = parseInt(el.dataset.target) || 0;
+      if (target === 0) { el.textContent = '0'; return; }
+      animateCounter(el, target);
+    });
+  });
+}
+
+function animateCounter(el, target) {
+  const duration = 800;
+  const start = performance.now();
+  function tick(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+    el.textContent = Math.round(eased * target);
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 }
 
 function countRunners(...runners) {

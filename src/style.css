@@ -647,3 +647,207 @@ ol.rules-list li::before {
 .toast-success { background: var(--success); }
 .toast-error { background: var(--danger); }
 .toast-info { background: var(--primary); }
+
+/* === Auto-refresh indicator === */
+.auto-refresh-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  display: inline-block;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* === Dashboard Widgets === */
+.dashboard-widgets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.widget-card {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+.widget-card h3 {
+  font-size: 0.7rem;
+  margin-bottom: 0.75rem;
+  color: var(--primary);
+}
+.widget-subtitle {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.45rem;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 0.5rem;
+  text-align: right;
+}
+
+/* Who's Hot */
+.hot-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.hot-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+}
+.hot-item:first-child { background: rgba(255, 159, 28, 0.1); }
+.hot-rank {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.6rem;
+  color: var(--primary);
+  min-width: 1.2rem;
+}
+.hot-name { font-weight: 600; }
+.hot-team { color: var(--text-muted); font-size: 0.95rem; }
+.hot-stats { margin-left: auto; color: var(--text-muted); font-size: 0.95rem; }
+
+/* Highlights */
+.highlight-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.highlight-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 1.05rem;
+}
+.highlight-runs { color: var(--success); font-weight: 700; }
+
+/* === Undo Bar === */
+.undo-bar {
+  display: flex; align-items: center; gap: 0.75rem;
+  background: var(--bg-card); border: 2px solid var(--warning);
+  border-radius: var(--radius); padding: 0.6rem 1rem;
+  margin-top: 0.75rem;
+  font-size: 1.05rem;
+}
+.undo-timer {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.65rem;
+  color: var(--warning);
+}
+
+/* === Export Bar === */
+.export-bar {
+  display: flex; justify-content: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+/* === Awards === */
+.awards-section { margin-bottom: 2rem; }
+.awards-section h2 { margin-bottom: 1rem; }
+.awards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+.award-card {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-align: center;
+  display: flex; flex-direction: column; gap: 0.3rem;
+}
+.award-champion { border-color: var(--primary); box-shadow: 0 0 12px var(--glow); }
+.award-grandslam { border-color: var(--danger); }
+.award-icon { font-size: 1.8rem; }
+.award-title {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.5rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.award-winner {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.65rem;
+  color: var(--primary);
+}
+.award-value { color: var(--text-muted); font-size: 1rem; }
+
+/* === Compare / Head-to-Head === */
+.compare-selectors {
+  display: flex; align-items: center; gap: 0.75rem;
+  flex-wrap: wrap; margin-bottom: 1.5rem;
+}
+.compare-vs {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.8rem;
+  color: var(--primary);
+}
+.compare-table {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.compare-header {
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  gap: 1rem; padding: 1rem;
+  background: var(--scoreboard-bg);
+  border-bottom: 2px solid var(--border);
+}
+.compare-team-name {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.7rem;
+  color: var(--primary);
+  text-align: center;
+}
+.compare-label {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  text-align: center;
+  align-self: center;
+}
+.compare-row {
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  gap: 1rem; padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.compare-row:last-child { border-bottom: none; }
+.compare-val {
+  text-align: center;
+  font-family: 'VT323', monospace;
+  font-size: 1.4rem;
+}
+.compare-winner { color: var(--success); font-weight: 700; }
+.compare-stat-label {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.5rem;
+  color: var(--text-muted);
+  text-align: center;
+  align-self: center;
+  text-transform: uppercase;
+}
+
+/* === Audit Log === */
+.audit-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.audit-entry {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 1.05rem;
+}
+.audit-action { flex-shrink: 0; }
+.audit-user { font-weight: 600; min-width: 80px; }
+.audit-details { color: var(--text-muted); flex: 1; }
+.audit-time { color: var(--text-muted); font-size: 0.9rem; margin-left: auto; }
+
+/* === Bulk Import === */
+.bulk-import-section {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+.bulk-import-section h3 { margin-bottom: 0.5rem; }
+
+/* === Player Stat Highlights === */
+.player-stat-highlight { border-color: var(--primary); }
+.player-stat-highlight .player-stat-value {
+  color: var(--success);
+}
