@@ -184,17 +184,20 @@ h3 { font-size: 0.8rem; }
   border: 3px solid var(--primary);
   box-shadow: 0 0 30px var(--glow), inset 0 0 30px rgba(0,0,0,0.2);
 }
-.auth-card h1 { font-size: 1rem; margin-bottom: 0.5rem; color: var(--primary); }
+.auth-card h1 { font-size: 1rem; margin-bottom: 0.5rem; color: purple; }
 .auth-subtitle {
   font-family: 'Press Start 2P', cursive;
   font-size: 0.65rem;
-  color: var(--text-muted);
+  color: purple;
   margin-bottom: 2rem;
   animation: blink 1.5s step-end infinite;
 }
 .auth-form { text-align: left; }
-.auth-link { margin-top: 1.5rem; font-size: 1rem; color: var(--text-muted); }
-.auth-link a { color: var(--primary); text-decoration: none; }
+.auth-form label { color: purple; }
+.auth-form .btn-primary { background: purple; border-color: purple; }
+.auth-form .btn-primary:hover { background: #6a0dad; border-color: #6a0dad; }
+.auth-link { margin-top: 1.5rem; font-size: 1rem; color: purple; }
+.auth-link a { color: purple; text-decoration: none; }
 
 @keyframes blink {
   0%, 49% { opacity: 1; }
