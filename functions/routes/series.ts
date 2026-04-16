@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { Env } from '../types';
 import { authRequired, adminRequired } from '../middleware/auth';
+import { logAudit } from '../services/audit';
+import { updateTournamentStandings } from './tournaments';
 
 export const seriesRoutes = new Hono<{ Bindings: Env }>();
 
@@ -53,7 +55,12 @@ seriesRoutes.delete('/:id', authRequired, adminRequired, async (c) => {
   if (!series) return c.json({ error: 'Series not found' }, 404);
 
   // Delete associated data first, then the series
+  await c.env.DB.prepare('DELETE FROM game_base_state WHERE game_id IN (SELECT id FROM games WHERE series_id = ?)').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM challenges WHERE series_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM tournament_standings WHERE tournament_id IN (SELECT id FROM tournaments WHERE series_id = ?)').bind(id).run();
   await c.env.DB.prepare('DELETE FROM at_bats WHERE series_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM games WHERE series_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM tournaments WHERE series_id = ?').bind(id).run();
   await c.env.DB.prepare('DELETE FROM base_state WHERE series_id = ?').bind(id).run();
   await c.env.DB.prepare('DELETE FROM series WHERE id = ?').bind(id).run();
 
@@ -80,5 +87,44 @@ seriesRoutes.put('/:id', authRequired, adminRequired, async (c) => {
     `UPDATE series SET ${updates.join(', ')} WHERE id = ?`
   ).bind(...values).run();
 
+  // Cascade: when ending a series, complete all games, tournaments, and expire challenges
+  if (body.is_active === 0) {
+    const user = c.get('user');
+    await cascadeEndSeries(c.env.DB, parseInt(id as string), user.sub);
+  }
+
   return c.json({ success: true });
 });
+
+async function cascadeEndSeries(db: D1Database, seriesId: number, userId: number) {
+  // 1. Complete all active/scheduled games, determine winners
+  const activeGames = await db.prepare(
+    `SELECT id, tournament_id, home_team_id, away_team_id, home_runs, away_runs
+     FROM games WHERE series_id = ? AND status IN ('scheduled', 'active')`
+  ).bind(seriesId).all();
+
+  for (const game of activeGames.results as any[]) {
+    const winnerId = game.home_runs > game.away_runs ? game.home_team_id :
+                     game.away_runs > game.home_runs ? game.away_team_id : null;
+    await db.prepare(
+      `UPDATE games SET status = 'completed', winner_team_id = ? WHERE id = ?`
+    ).bind(winnerId, game.id).run();
+
+    if (game.tournament_id) {
+      await updateTournamentStandings(db, game.tournament_id, game);
+    }
+  }
+
+  // 2. Complete all active/draft tournaments
+  await db.prepare(
+    `UPDATE tournaments SET status = 'completed' WHERE series_id = ? AND status IN ('draft', 'active')`
+  ).bind(seriesId).run();
+
+  // 3. Expire all pending challenges
+  await db.prepare(
+    `UPDATE challenges SET status = 'expired' WHERE series_id = ? AND status = 'pending'`
+  ).bind(seriesId).run();
+
+  await logAudit(db, userId, 'cascade_end_series', 'series', seriesId,
+    `Ended ${activeGames.results.length} games, completed tournaments, expired challenges`);
+}

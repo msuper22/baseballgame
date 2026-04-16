@@ -868,3 +868,152 @@ ol.rules-list li::before {
 .player-stat-highlight .player-stat-value {
   color: var(--success);
 }
+
+/* === Schedule Page === */
+.schedule-filters {
+  display: flex; align-items: center; gap: 1rem;
+}
+.toggle-label {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-family: 'VT323', monospace; font-size: 1.1rem; cursor: pointer;
+}
+.schedule-day { margin-bottom: 2rem; }
+.schedule-date {
+  font-size: 0.8rem; margin-bottom: 0.75rem;
+  color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;
+}
+.schedule-date.today { color: var(--primary); border-color: var(--primary); }
+.schedule-date.past { opacity: 0.6; }
+.date-sub { font-size: 0.65rem; color: var(--text-muted); margin-left: 0.5rem; }
+.schedule-games {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;
+}
+
+/* === Game Cards === */
+.game-card {
+  background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius);
+  padding: 1rem; cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.game-card:hover { border-color: var(--primary); box-shadow: 0 0 12px var(--glow); }
+.game-card.my-game { border-color: var(--primary); }
+.game-card-header {
+  display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;
+}
+.game-badge {
+  font-family: 'Press Start 2P', cursive; font-size: 0.45rem; padding: 0.2rem 0.5rem;
+  border-radius: 4px; text-transform: uppercase; letter-spacing: 1px;
+}
+.game-status-scheduled { background: var(--border); color: var(--text-muted); }
+.game-status-active { background: var(--success); color: #fff; animation: blink 1.5s step-end infinite; }
+.game-status-completed { background: var(--text-muted); color: var(--bg); }
+.game-status-cancelled { background: var(--danger); color: #fff; }
+.game-tournament { font-size: 0.9rem; color: var(--text-muted); }
+.game-time { font-size: 0.9rem; color: var(--text-muted); }
+.game-round { font-size: 0.9rem; color: var(--text-muted); }
+.game-matchup {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+}
+.game-team {
+  display: flex; align-items: center; gap: 0.5rem; flex: 1;
+}
+.game-team:last-child { flex-direction: row-reverse; text-align: right; }
+.team-name { font-family: 'VT323', monospace; font-size: 1.3rem; }
+.team-score {
+  font-family: 'Press Start 2P', cursive; font-size: 0.8rem;
+  background: var(--bg-input); padding: 0.3rem 0.5rem; border-radius: 4px;
+  min-width: 2rem; text-align: center;
+}
+.game-team.winner .team-name { color: var(--primary); }
+.game-team.winner .team-score { color: var(--primary); }
+.game-vs { font-size: 0.8rem; color: var(--text-muted); }
+
+/* === Game Detail Page === */
+.game-detail-header { margin-bottom: 1.5rem; }
+.game-detail-info {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;
+}
+.game-date { font-size: 1rem; color: var(--text-muted); }
+.game-scoreboard {
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  background: var(--scoreboard-bg); border: 2px solid var(--border); border-radius: var(--radius);
+  padding: 1.5rem 2rem; margin-bottom: 1rem;
+}
+.score-team {
+  display: flex; align-items: center; gap: 1rem; flex: 1;
+}
+.score-team:last-child { flex-direction: row-reverse; }
+.score-team-name { font-family: 'VT323', monospace; font-size: 1.5rem; }
+.score-value { font-family: 'Press Start 2P', cursive; font-size: 1.5rem; }
+.score-team.winner .score-team-name { color: var(--primary); }
+.score-team.winner .score-value { color: var(--primary); }
+.score-separator { font-size: 1.5rem; color: var(--text-muted); }
+.game-diamonds-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem; margin-bottom: 1.5rem;
+}
+.game-admin-controls { display: flex; gap: 0.5rem; }
+.game-context { color: var(--primary); margin-bottom: 1rem; font-size: 1.1rem; }
+
+/* === Challenges Page === */
+.challenge-form-section {
+  background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius);
+  padding: 1.5rem; margin-bottom: 2rem;
+}
+.challenge-form-section h2 { font-size: 0.85rem; margin-bottom: 1rem; }
+.challenge-section { margin-bottom: 2rem; }
+.challenge-section h2 { font-size: 0.85rem; margin-bottom: 1rem; }
+.challenge-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.challenge-card {
+  background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius);
+  padding: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  flex-wrap: wrap;
+}
+.challenge-card.incoming { border-color: var(--primary); }
+.challenge-info {
+  display: flex; flex-direction: column; gap: 0.3rem; font-size: 1.1rem;
+}
+.challenge-date { color: var(--text-muted); font-size: 1rem; }
+.challenge-message { font-style: italic; color: var(--text-muted); font-size: 1rem; }
+.challenge-captain { font-size: 0.9rem; color: var(--text-muted); }
+.challenge-expires { font-size: 0.85rem; color: var(--warning); }
+.challenge-actions { display: flex; gap: 0.5rem; }
+.info-text { color: var(--text-muted); font-size: 1rem; margin-bottom: 1.5rem; }
+.badge-count {
+  display: none; background: var(--danger); color: #fff; font-size: 0.6rem;
+  padding: 0.1rem 0.35rem; border-radius: 50%; font-family: 'Press Start 2P', cursive;
+  vertical-align: super; margin-left: 0.2rem;
+}
+
+/* === Tournament Page === */
+.tournament-info {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;
+}
+.tournament-info h2 { font-size: 0.9rem; }
+.positive { color: var(--success); }
+.negative { color: var(--danger); }
+
+/* === Today's Games Widget === */
+.todays-games-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.today-game-item {
+  display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: var(--text);
+  padding: 0.4rem 0; border-bottom: 1px solid var(--border); font-size: 1rem;
+}
+.today-game-item:last-child { border-bottom: none; }
+.today-game-item:hover { color: var(--primary); }
+.today-teams { flex: 1; }
+.today-score { font-family: 'Press Start 2P', cursive; font-size: 0.55rem; }
+.today-time { color: var(--text-muted); font-size: 0.9rem; }
+
+/* === Schedule Generator (Admin) === */
+.schedule-generator {
+  background: var(--bg-input); border: 2px solid var(--border); border-radius: var(--radius);
+  padding: 1.5rem; margin: 1.5rem 0;
+}
+.schedule-generator h3 { font-size: 0.75rem; margin-bottom: 0.75rem; }
+.team-checkboxes {
+  display: flex; flex-wrap: wrap; gap: 0.75rem;
+}
+.checkbox-label {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-family: 'VT323', monospace; font-size: 1.1rem; cursor: pointer;
+}

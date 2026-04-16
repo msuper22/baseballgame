@@ -42,3 +42,11 @@ export async function adminRequired(c: Context<{ Bindings: Env }>, next: Next) {
   }
   await next();
 }
+
+export async function captainRequired(c: Context<{ Bindings: Env }>, next: Next) {
+  const user = c.get('user');
+  if (!user.is_captain && user.role !== 'admin') {
+    return c.json({ error: 'Team captain or admin access required' }, 403);
+  }
+  await next();
+}

@@ -27,7 +27,7 @@ authRoutes.post('/login', async (c) => {
 
   const secret = c.env.JWT_SECRET || 'dev-secret-change-in-production';
   const token = await signToken(
-    { sub: player.id, role: player.role, team_id: player.team_id },
+    { sub: player.id, role: player.role, team_id: player.team_id, is_captain: !!player.is_captain },
     secret
   );
 
@@ -39,6 +39,7 @@ authRoutes.post('/login', async (c) => {
       display_name: player.display_name,
       team_id: player.team_id,
       role: player.role,
+      is_captain: !!player.is_captain,
     },
   });
 });
@@ -76,7 +77,7 @@ authRoutes.post('/register', async (c) => {
   const secret = c.env.JWT_SECRET || 'dev-secret-change-in-production';
   const playerId = result.meta.last_row_id;
   const token = await signToken(
-    { sub: playerId as number, role: 'player', team_id: team.id },
+    { sub: playerId as number, role: 'player', team_id: team.id, is_captain: false },
     secret
   );
 
@@ -88,6 +89,7 @@ authRoutes.post('/register', async (c) => {
       display_name,
       team_id: team.id,
       role: 'player',
+      is_captain: false,
       team_name: team.name,
     },
   });
@@ -97,7 +99,7 @@ authRoutes.post('/register', async (c) => {
 authRoutes.get('/me', authRequired, async (c) => {
   const user = c.get('user');
   const player = await c.env.DB.prepare(
-    `SELECT p.id, p.username, p.display_name, p.team_id, p.role, t.name as team_name
+    `SELECT p.id, p.username, p.display_name, p.team_id, p.role, p.is_captain, t.name as team_name
      FROM players p LEFT JOIN teams t ON p.team_id = t.id
      WHERE p.id = ?`
   ).bind(user.sub).first();

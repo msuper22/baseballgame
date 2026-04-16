@@ -8,7 +8,7 @@ export const playerRoutes = new Hono<{ Bindings: Env }>();
 // List all players (optionally filter by team)
 playerRoutes.get('/', authRequired, async (c) => {
   const teamId = c.req.query('team_id');
-  let query = `SELECT p.id, p.username, p.display_name, p.team_id, p.role, p.is_active, t.name as team_name
+  let query = `SELECT p.id, p.username, p.display_name, p.team_id, p.role, p.is_active, p.is_captain, t.name as team_name
                FROM players p LEFT JOIN teams t ON p.team_id = t.id`;
   const params: any[] = [];
 
@@ -60,6 +60,7 @@ playerRoutes.put('/:id', authRequired, adminRequired, async (c) => {
   if (body.team_id !== undefined) { updates.push('team_id = ?'); values.push(body.team_id); }
   if (body.role !== undefined) { updates.push('role = ?'); values.push(body.role); }
   if (body.is_active !== undefined) { updates.push('is_active = ?'); values.push(body.is_active); }
+  if (body.is_captain !== undefined) { updates.push('is_captain = ?'); values.push(body.is_captain); }
   if (body.password) {
     const hashed = await hashPassword(body.password);
     updates.push('password = ?');

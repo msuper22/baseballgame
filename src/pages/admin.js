@@ -17,6 +17,7 @@ export async function adminPage(app) {
         <button class="tab active" data-tab="teams">Teams</button>
         <button class="tab" data-tab="players">Players</button>
         <button class="tab" data-tab="series">Series</button>
+        <button class="tab" data-tab="tournaments">Tournaments</button>
         <button class="tab" data-tab="events">Events</button>
         <button class="tab" data-tab="audit">Audit Log</button>
         <button class="tab" data-tab="log-event">Log Event</button>
@@ -38,6 +39,7 @@ export async function adminPage(app) {
     if (tabName === 'teams') await loadTeamsTab(content);
     else if (tabName === 'players') await loadPlayersTab(content);
     else if (tabName === 'series') await loadSeriesTab(content);
+    else if (tabName === 'tournaments') await loadTournamentsTab(content);
     else if (tabName === 'events') await loadEventsTab(content);
     else if (tabName === 'audit') await loadAuditTab(content);
     else if (tabName === 'log-event') await renderEventForm(content, { onSuccess: () => showToast('Event logged!', 'success') });
@@ -146,9 +148,11 @@ async function loadPlayersTab(content) {
                 <span class="badge">${p.username}</span>
                 <span class="badge">${p.team_name || 'No team'}</span>
                 <span class="badge badge-${p.role}">${p.role}</span>
+                ${p.is_captain ? '<span class="badge badge-active">Captain</span>' : ''}
                 ${!p.is_active ? '<span class="badge badge-inactive">Inactive</span>' : ''}
               </div>
               <div class="admin-item-actions">
+                ${p.is_active ? `<button class="btn btn-sm toggle-captain" data-id="${p.id}" data-captain="${p.is_captain || 0}">${p.is_captain ? 'Remove Captain' : 'Make Captain'}</button>` : ''}
                 ${p.is_active ? `<button class="btn btn-sm btn-danger deactivate-player" data-id="${p.id}">Deactivate</button>` : ''}
               </div>
             </div>
@@ -199,6 +203,22 @@ async function loadPlayersTab(content) {
       } catch (e) {
         showToast(e.message, 'error');
       }
+    });
+
+    content.querySelectorAll('.toggle-captain').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const isCaptain = btn.dataset.captain === '1';
+        try {
+          await api(`/players/${btn.dataset.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ is_captain: isCaptain ? 0 : 1 }),
+          });
+          showToast(isCaptain ? 'Captain removed' : 'Captain assigned!', 'success');
+          loadPlayersTab(content);
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      });
     });
 
     content.querySelectorAll('.deactivate-player').forEach(btn => {
@@ -312,6 +332,167 @@ async function loadSeriesTab(content) {
         } catch (e) {
           showToast(e.message, 'error');
         }
+      });
+    });
+  } catch (e) {
+    content.innerHTML = `<p class="error">${e.message}</p>`;
+  }
+}
+
+async function loadTournamentsTab(content) {
+  content.innerHTML = '<div class="loading">Loading...</div>';
+  try {
+    const [tournamentsRes, seriesRes, teamsRes] = await Promise.all([
+      api('/tournaments'),
+      api('/series'),
+      api('/teams'),
+    ]);
+
+    content.innerHTML = `
+      <div class="admin-section">
+        <h2>Tournaments</h2>
+        <form id="add-tournament-form" class="inline-form" style="flex-wrap:wrap">
+          <input type="text" id="tournament-name" class="form-input" placeholder="Tournament name" required>
+          <select id="tournament-series" class="form-input" required>
+            <option value="">Select series...</option>
+            ${seriesRes.series.map(s => `<option value="${s.id}">${s.name} ${s.is_active ? '(Active)' : ''}</option>`).join('')}
+          </select>
+          <input type="date" id="tournament-start" class="form-input" required>
+          <input type="date" id="tournament-end" class="form-input" required>
+          <button type="submit" class="btn btn-primary">Create Tournament</button>
+        </form>
+
+        <div id="schedule-generator" class="schedule-generator" style="display:none">
+          <h3>Generate Round Robin Schedule</h3>
+          <p style="font-size:1rem;color:var(--text-muted);margin-bottom:0.5rem">Select teams to include:</p>
+          <div id="team-checkboxes" class="team-checkboxes">
+            ${teamsRes.teams.map(t => `
+              <label class="checkbox-label">
+                <input type="checkbox" value="${t.id}" class="team-checkbox"> ${t.name}
+              </label>
+            `).join('')}
+          </div>
+          <div class="inline-form" style="margin-top:0.75rem">
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:0.6rem">Days Between Rounds</label>
+              <input type="number" id="days-between" class="form-input" value="1" min="1" max="7" style="width:80px">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:0.6rem">Default Time</label>
+              <input type="time" id="default-time" class="form-input" style="width:120px">
+            </div>
+            <button id="generate-schedule-btn" class="btn btn-primary">Generate Schedule</button>
+          </div>
+          <div id="schedule-result"></div>
+        </div>
+
+        <div class="admin-list">
+          ${tournamentsRes.tournaments.map(t => {
+            const statusBadge = { draft: 'badge-mod', active: 'badge-active', completed: 'badge-inactive' }[t.status] || '';
+            return `
+              <div class="admin-item">
+                <div class="admin-item-info">
+                  <strong><a href="#/tournament/${t.id}" class="table-link">${t.name}</a></strong>
+                  <span class="badge">${t.series_name}</span>
+                  <span class="badge ${statusBadge}">${t.status}</span>
+                  <span class="badge">${t.game_count} games</span>
+                  <span class="badge">${t.start_date} - ${t.end_date}</span>
+                </div>
+                <div class="admin-item-actions">
+                  ${t.status === 'draft' ? `<button class="btn btn-sm btn-primary setup-schedule" data-id="${t.id}">Setup Schedule</button>` : ''}
+                  ${t.status === 'draft' ? `<button class="btn btn-sm btn-primary activate-tournament" data-id="${t.id}">Activate</button>` : ''}
+                  ${t.status === 'active' ? `<button class="btn btn-sm btn-danger complete-tournament" data-id="${t.id}">Complete</button>` : ''}
+                  <button class="btn btn-sm btn-danger delete-tournament" data-id="${t.id}">Delete</button>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+
+    // Create tournament
+    document.getElementById('add-tournament-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await api('/tournaments', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: document.getElementById('tournament-name').value,
+            series_id: parseInt(document.getElementById('tournament-series').value),
+            start_date: document.getElementById('tournament-start').value,
+            end_date: document.getElementById('tournament-end').value,
+          }),
+        });
+        showToast('Tournament created! Now set up the schedule.', 'success');
+        loadTournamentsTab(content);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    });
+
+    // Setup schedule button — show the generator
+    let activeTournamentId = null;
+    content.querySelectorAll('.setup-schedule').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeTournamentId = btn.dataset.id;
+        const generator = document.getElementById('schedule-generator');
+        if (generator) generator.style.display = 'block';
+      });
+    });
+
+    // Generate schedule
+    document.getElementById('generate-schedule-btn')?.addEventListener('click', async () => {
+      if (!activeTournamentId) { showToast('Select a tournament first', 'error'); return; }
+
+      const teamIds = Array.from(content.querySelectorAll('.team-checkbox:checked')).map(cb => parseInt(cb.value));
+      if (teamIds.length < 2) { showToast('Select at least 2 teams', 'error'); return; }
+
+      const daysBetween = parseInt(document.getElementById('days-between').value) || 1;
+      const defaultTime = document.getElementById('default-time').value || null;
+
+      try {
+        const res = await api(`/tournaments/${activeTournamentId}/generate-schedule`, {
+          method: 'POST',
+          body: JSON.stringify({ team_ids: teamIds, days_between_rounds: daysBetween, default_time: defaultTime }),
+        });
+        showToast(`Schedule generated: ${res.games_created} games!`, 'success');
+        loadTournamentsTab(content);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    });
+
+    // Activate
+    content.querySelectorAll('.activate-tournament').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try {
+          await api(`/tournaments/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ status: 'active' }) });
+          showToast('Tournament activated!', 'success');
+          loadTournamentsTab(content);
+        } catch (e) { showToast(e.message, 'error'); }
+      });
+    });
+
+    // Complete
+    content.querySelectorAll('.complete-tournament').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Complete this tournament?')) return;
+        try {
+          await api(`/tournaments/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ status: 'completed' }) });
+          showToast('Tournament completed!', 'success');
+          loadTournamentsTab(content);
+        } catch (e) { showToast(e.message, 'error'); }
+      });
+    });
+
+    // Delete
+    content.querySelectorAll('.delete-tournament').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this tournament and all its games?')) return;
+        try {
+          await api(`/tournaments/${btn.dataset.id}`, { method: 'DELETE' });
+          showToast('Tournament deleted', 'success');
+          loadTournamentsTab(content);
+        } catch (e) { showToast(e.message, 'error'); }
       });
     });
   } catch (e) {

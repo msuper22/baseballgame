@@ -24,6 +24,7 @@ export async function dashboardPage(app) {
         <div class="loading">Loading game state...</div>
       </div>
       <div class="dashboard-widgets">
+        <div id="todays-games" class="widget"></div>
         <div id="whos-hot" class="widget"></div>
         <div id="highlights" class="widget"></div>
       </div>
@@ -102,11 +103,40 @@ async function loadDashboard() {
       renderDiamond(div, state);
     }
 
-    // Load who's hot + highlights + recent plays in parallel
-    await Promise.all([loadWhosHot(), loadHighlights(), loadRecentPlays()]);
+    // Load widgets in parallel
+    await Promise.all([loadTodaysGames(), loadWhosHot(), loadHighlights(), loadRecentPlays()]);
   } catch (e) {
     showToast(e.message, 'error');
   }
+}
+
+async function loadTodaysGames() {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const res = await api(`/games?date=${today}`);
+    const el = document.getElementById('todays-games');
+    if (!el) return;
+
+    const games = res.games || [];
+    if (!games.length) { el.innerHTML = ''; return; }
+
+    el.innerHTML = `
+      <div class="widget-card">
+        <h3>&#127918; Today's Games</h3>
+        <div class="todays-games-list">
+          ${games.map(g => {
+            const statusLabel = { scheduled: 'Upcoming', active: 'LIVE', completed: 'Final' }[g.status] || g.status;
+            return `
+              <a href="#/game/${g.id}" class="today-game-item">
+                <span class="game-badge game-status-${g.status}" style="font-size:0.5rem">${statusLabel}</span>
+                <span class="today-teams">${g.home_team_name} vs ${g.away_team_name}</span>
+                ${g.status !== 'scheduled' ? `<span class="today-score">${g.home_runs}-${g.away_runs}</span>` : ''}
+                ${g.scheduled_time ? `<span class="today-time">${g.scheduled_time}</span>` : ''}
+              </a>`;
+          }).join('')}
+        </div>
+      </div>`;
+  } catch { /* silent */ }
 }
 
 async function loadWhosHot() {

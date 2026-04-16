@@ -49,3 +49,8 @@ export function isMod() {
   const user = getUser();
   return user?.role === 'mod' || user?.role === 'admin';
 }
+
+export function isCaptain() {
+  const user = getUser();
+  return !!user?.is_captain || user?.role === 'admin';
+}

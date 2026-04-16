@@ -12,6 +12,10 @@ import { seriesDetailPage } from './pages/series-detail.js';
 import { rulesPage } from './pages/rules.js';
 import { playerPage } from './pages/player.js';
 import { comparePage } from './pages/compare.js';
+import { schedulePage } from './pages/schedule.js';
+import { gamePage } from './pages/game.js';
+import { challengesPage } from './pages/challenges.js';
+import { tournamentPage } from './pages/tournament.js';
 import { initTheme } from './theme.js';
 import './style.css';
 
@@ -30,6 +34,10 @@ route('/rules', rulesPage);
 route('/series/:id', seriesDetailPage);
 route('/log-event', logEventPage);
 route('/compare', comparePage);
+route('/schedule', schedulePage);
+route('/game/:id', gamePage);
+route('/challenges', challengesPage);
+route('/tournament/:id', tournamentPage);
 route('/admin', adminPage);
 
 // Init

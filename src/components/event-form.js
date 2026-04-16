@@ -20,9 +20,14 @@ export async function renderEventForm(container, options = {}) {
   const canLogForOthers = isMod();
   const filteredPlayers = canLogForOthers ? players : players.filter(p => p.id === user.id);
 
+  const gameLabel = options.gameInfo
+    ? `<p class="game-context">Logging for: <strong>${options.gameInfo.home_team_name} vs ${options.gameInfo.away_team_name}</strong></p>`
+    : '';
+
   container.innerHTML = `
     <div class="event-form">
       <h3>Log Production Event</h3>
+      ${gameLabel}
       <div class="form-group">
         <label for="event-player">Player</label>
         <select id="event-player" class="form-input">
@@ -74,9 +79,12 @@ export async function renderEventForm(container, options = {}) {
 
       btn.disabled = true;
       try {
+        const postBody = { player_id: playerId, hit_type: hitType, description: leadId };
+        if (options.gameId) postBody.game_id = options.gameId;
+
         const res = await api('/at-bats', {
           method: 'POST',
-          body: JSON.stringify({ player_id: playerId, hit_type: hitType, description: leadId }),
+          body: JSON.stringify(postBody),
         });
 
         const ab = res.at_bat;

@@ -8,6 +8,9 @@ import { playerRoutes } from '../routes/players';
 import { seriesRoutes } from '../routes/series';
 import { atBatRoutes } from '../routes/at-bats';
 import { statsRoutes } from '../routes/stats';
+import { tournamentRoutes } from '../routes/tournaments';
+import { gameRoutes } from '../routes/games';
+import { challengeRoutes } from '../routes/challenges';
 
 const app = new Hono<{ Bindings: Env }>().basePath('/api');
 
@@ -25,5 +28,8 @@ app.route('/players', playerRoutes);
 app.route('/series', seriesRoutes);
 app.route('/at-bats', atBatRoutes);
 app.route('/stats', statsRoutes);
+app.route('/tournaments', tournamentRoutes);
+app.route('/games', gameRoutes);
+app.route('/challenges', challengeRoutes);
 
 export const onRequest = handle(app);

@@ -1,78 +1,13 @@
--- Teams competing in the series
-CREATE TABLE IF NOT EXISTS teams (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  name       TEXT NOT NULL UNIQUE,
-  invite_code TEXT NOT NULL UNIQUE,
-  created_at TEXT DEFAULT (datetime('now'))
-);
+-- Migration: Add tournaments, games, challenges, and captain support
+-- Run this against existing databases to add the new scheduling features
 
--- Player accounts
-CREATE TABLE IF NOT EXISTS players (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  username     TEXT NOT NULL UNIQUE,
-  password     TEXT NOT NULL,
-  display_name TEXT NOT NULL,
-  team_id      INTEGER REFERENCES teams(id),
-  role         TEXT NOT NULL DEFAULT 'player',
-  is_active    INTEGER NOT NULL DEFAULT 1,
-  created_at   TEXT DEFAULT (datetime('now'))
-);
+-- Add is_captain flag to players
+ALTER TABLE players ADD COLUMN is_captain INTEGER NOT NULL DEFAULT 0;
 
--- A competition week
-CREATE TABLE IF NOT EXISTS series (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  name       TEXT NOT NULL,
-  start_date TEXT NOT NULL,
-  end_date   TEXT NOT NULL,
-  is_active  INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT DEFAULT (datetime('now'))
-);
+-- Add game_id to at_bats (nullable for backward compat)
+ALTER TABLE at_bats ADD COLUMN game_id INTEGER REFERENCES games(id);
 
--- Every production event entered
-CREATE TABLE IF NOT EXISTS at_bats (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  series_id   INTEGER NOT NULL REFERENCES series(id),
-  player_id   INTEGER NOT NULL REFERENCES players(id),
-  team_id     INTEGER NOT NULL REFERENCES teams(id),
-  hit_type    TEXT NOT NULL,
-  bases       INTEGER NOT NULL,
-  runs_scored INTEGER NOT NULL DEFAULT 0,
-  description TEXT,
-  entered_by  INTEGER REFERENCES players(id),
-  created_at  TEXT DEFAULT (datetime('now'))
-);
-
--- Current base state per team per series
-CREATE TABLE IF NOT EXISTS base_state (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  series_id   INTEGER NOT NULL REFERENCES series(id),
-  team_id     INTEGER NOT NULL REFERENCES teams(id),
-  first_base  INTEGER REFERENCES players(id),
-  second_base INTEGER REFERENCES players(id),
-  third_base  INTEGER REFERENCES players(id),
-  total_runs  INTEGER NOT NULL DEFAULT 0,
-  total_bases INTEGER NOT NULL DEFAULT 0,
-  UNIQUE(series_id, team_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_at_bats_series ON at_bats(series_id);
-CREATE INDEX IF NOT EXISTS idx_at_bats_player ON at_bats(player_id);
-CREATE INDEX IF NOT EXISTS idx_at_bats_team   ON at_bats(team_id, series_id);
-CREATE INDEX IF NOT EXISTS idx_players_team   ON players(team_id);
-
--- Audit log for tracking actions
-CREATE TABLE IF NOT EXISTS audit_log (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id     INTEGER NOT NULL REFERENCES players(id),
-  action      TEXT NOT NULL,
-  target_type TEXT NOT NULL,
-  target_id   INTEGER,
-  details     TEXT,
-  created_at  TEXT DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
-
--- Tournaments (round robin containers within a series)
+-- Tournaments
 CREATE TABLE IF NOT EXISTS tournaments (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT NOT NULL,
@@ -85,7 +20,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
   created_at  TEXT DEFAULT (datetime('now'))
 );
 
--- Games (individual head-to-head matchups)
+-- Games
 CREATE TABLE IF NOT EXISTS games (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   tournament_id   INTEGER REFERENCES tournaments(id),
@@ -109,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_games_tournament ON games(tournament_id);
 CREATE INDEX IF NOT EXISTS idx_games_teams ON games(home_team_id, away_team_id);
 CREATE INDEX IF NOT EXISTS idx_games_date ON games(scheduled_date);
 
--- Per-game base state (two rows per game, one per team)
+-- Game base state
 CREATE TABLE IF NOT EXISTS game_base_state (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   game_id     INTEGER NOT NULL REFERENCES games(id),
@@ -122,7 +57,7 @@ CREATE TABLE IF NOT EXISTS game_base_state (
   UNIQUE(game_id, team_id)
 );
 
--- Challenges (captain-initiated game requests)
+-- Challenges
 CREATE TABLE IF NOT EXISTS challenges (
   id                    INTEGER PRIMARY KEY AUTOINCREMENT,
   series_id             INTEGER NOT NULL REFERENCES series(id),
@@ -142,7 +77,7 @@ CREATE TABLE IF NOT EXISTS challenges (
 CREATE INDEX IF NOT EXISTS idx_challenges_teams ON challenges(challenged_team_id, status);
 CREATE INDEX IF NOT EXISTS idx_challenges_status ON challenges(status);
 
--- Tournament standings (cached W-L-T per team per tournament)
+-- Tournament standings
 CREATE TABLE IF NOT EXISTS tournament_standings (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
