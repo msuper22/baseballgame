@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { Env } from '../types';
 import { authRequired } from '../middleware/auth';
 import { getGameStateWithNames } from '../services/game-engine';
+import { containsProfanity } from '../services/profanity';
 
 export const spectatorRoutes = new Hono<{ Bindings: Env }>();
 
@@ -49,6 +50,10 @@ spectatorRoutes.post('/games/:id/chat', authRequired, async (c) => {
   }
 
   const trimmed = message.trim().slice(0, 200);
+
+  if (containsProfanity(trimmed)) {
+    return c.json({ error: 'Message contains inappropriate language' }, 400);
+  }
 
   // Rate limit: 1 message per 3 seconds
   const recent = await c.env.DB.prepare(

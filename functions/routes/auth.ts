@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { Env, Player } from '../types';
 import { hashPassword, comparePassword, signToken } from '../services/auth';
 import { authRequired } from '../middleware/auth';
+import { containsProfanity } from '../services/profanity';
 
 export const authRoutes = new Hono<{ Bindings: Env }>();
 
@@ -49,6 +50,10 @@ authRoutes.post('/register', async (c) => {
   const { username, password, display_name, invite_code } = await c.req.json();
   if (!username || !password || !display_name || !invite_code) {
     return c.json({ error: 'All fields required: username, password, display_name, invite_code' }, 400);
+  }
+
+  if (containsProfanity(username) || containsProfanity(display_name)) {
+    return c.json({ error: 'Username or display name contains inappropriate language' }, 400);
   }
 
   // Find team by invite code
@@ -100,6 +105,10 @@ authRoutes.post('/register-spectator', async (c) => {
   const { username, password, display_name } = await c.req.json();
   if (!username || !password || !display_name) {
     return c.json({ error: 'All fields required: username, password, display_name' }, 400);
+  }
+
+  if (containsProfanity(username) || containsProfanity(display_name)) {
+    return c.json({ error: 'Username or display name contains inappropriate language' }, 400);
   }
 
   const existing = await c.env.DB.prepare(
