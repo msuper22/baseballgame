@@ -26,6 +26,7 @@ export function renderNav() {
   const profileLink = `<a href="#/player/${user?.id}" class="nav-link">${isAdmin() ? 'My Profile' : 'Profile'}</a>`;
   const logEventLink = isMod() || isLoggedIn() ? '<a href="#/log-event" class="nav-link">Log Event</a>' : '';
   const scheduleLink = '<a href="#/schedule" class="nav-link">Schedule</a>';
+  const spectatorLink = '<a href="#/spectator" class="nav-link">Spectate</a>';
   const challengesLink = isCaptain() ? '<a href="#/challenges" class="nav-link">Challenges <span id="challenge-badge" class="badge-count"></span></a>' : '';
 
   nav.innerHTML = `
@@ -38,6 +39,7 @@ export function renderNav() {
         <a href="#/rules" class="nav-link">Rules</a>
         <a href="#/compare" class="nav-link">Compare</a>
         ${scheduleLink}
+        ${spectatorLink}
         ${challengesLink}
         ${logEventLink}
         ${profileLink}

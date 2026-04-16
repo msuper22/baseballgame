@@ -95,6 +95,46 @@ authRoutes.post('/register', async (c) => {
   });
 });
 
+// Register as spectator (no invite code needed)
+authRoutes.post('/register-spectator', async (c) => {
+  const { username, password, display_name } = await c.req.json();
+  if (!username || !password || !display_name) {
+    return c.json({ error: 'All fields required: username, password, display_name' }, 400);
+  }
+
+  const existing = await c.env.DB.prepare(
+    'SELECT id FROM players WHERE username = ?'
+  ).bind(username).first();
+
+  if (existing) {
+    return c.json({ error: 'Username already taken' }, 400);
+  }
+
+  const hashed = await hashPassword(password);
+  const result = await c.env.DB.prepare(
+    'INSERT INTO players (username, password, display_name, team_id, role) VALUES (?, ?, ?, NULL, ?)'
+  ).bind(username, hashed, display_name, 'spectator').run();
+
+  const secret = c.env.JWT_SECRET || 'dev-secret-change-in-production';
+  const playerId = result.meta.last_row_id;
+  const token = await signToken(
+    { sub: playerId as number, role: 'spectator', team_id: 0, is_captain: false },
+    secret
+  );
+
+  return c.json({
+    token,
+    user: {
+      id: playerId,
+      username,
+      display_name,
+      team_id: null,
+      role: 'spectator',
+      is_captain: false,
+    },
+  });
+});
+
 // Get current user
 authRoutes.get('/me', authRequired, async (c) => {
   const user = c.get('user');

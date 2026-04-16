@@ -49,6 +49,51 @@ export function simulateAtBat(
   return { newBases, runsScored, scoringPlayerIds };
 }
 
+export interface DefenseResult {
+  strikesAdded: number;
+  outsAdded: number;
+  totalStrikes: number;
+  totalOuts: number;
+  inningEnded: boolean;
+}
+
+export function simulateDefenseEvent(
+  currentStrikes: number,
+  currentOuts: number,
+  hitType: HitType
+): DefenseResult {
+  const bases = HIT_BASES[hitType];
+  let strikesAdded = 0;
+  let outsAdded = 0;
+
+  if (hitType === 'single') {
+    // Strikeout: 1 strike toward the count
+    strikesAdded = 1;
+  } else if (hitType === 'double') {
+    // Caught out: direct out
+    outsAdded = 1;
+  } else if (hitType === 'triple') {
+    // Double play: 2 outs
+    outsAdded = 2;
+  } else if (hitType === 'home_run') {
+    // Triple play: 3 outs (inning over)
+    outsAdded = 3;
+  }
+
+  let totalStrikes = currentStrikes + strikesAdded;
+  let totalOuts = currentOuts + outsAdded;
+
+  // 2 strikes = strikeout = 1 out
+  if (totalStrikes >= 2) {
+    totalOuts += 1;
+    totalStrikes = 0;
+  }
+
+  const inningEnded = totalOuts >= 3;
+
+  return { strikesAdded, outsAdded, totalStrikes, totalOuts, inningEnded };
+}
+
 /**
  * Replay all at-bats for a team+series to rebuild base state from scratch.
  * Used when an at-bat is deleted (undo).

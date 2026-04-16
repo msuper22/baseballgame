@@ -155,3 +155,43 @@ CREATE TABLE IF NOT EXISTS tournament_standings (
   games_played  INTEGER NOT NULL DEFAULT 0,
   UNIQUE(tournament_id, team_id)
 );
+
+-- Half-inning state (per game)
+CREATE TABLE IF NOT EXISTS half_innings (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  game_id          INTEGER NOT NULL REFERENCES games(id),
+  inning_number    INTEGER NOT NULL,
+  half             TEXT NOT NULL,
+  batting_team_id  INTEGER NOT NULL REFERENCES teams(id),
+  fielding_team_id INTEGER NOT NULL REFERENCES teams(id),
+  outs             INTEGER NOT NULL DEFAULT 0,
+  strikes          INTEGER NOT NULL DEFAULT 0,
+  runs_scored      INTEGER NOT NULL DEFAULT 0,
+  is_complete      INTEGER NOT NULL DEFAULT 0,
+  ended_at         TEXT,
+  first_base       INTEGER REFERENCES players(id),
+  second_base      INTEGER REFERENCES players(id),
+  third_base       INTEGER REFERENCES players(id),
+  UNIQUE(game_id, inning_number, half)
+);
+CREATE INDEX IF NOT EXISTS idx_half_innings_game ON half_innings(game_id);
+
+-- Chat messages for spectator mode
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  game_id    INTEGER NOT NULL REFERENCES games(id),
+  player_id  INTEGER NOT NULL REFERENCES players(id),
+  message    TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_chat_game ON chat_messages(game_id, created_at);
+
+-- Emoji reactions for spectator mode
+CREATE TABLE IF NOT EXISTS reactions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  game_id    INTEGER NOT NULL REFERENCES games(id),
+  player_id  INTEGER NOT NULL REFERENCES players(id),
+  emoji      TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_reactions_game ON reactions(game_id, created_at);

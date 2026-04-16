@@ -16,7 +16,7 @@ export interface Player {
   password: string;
   display_name: string;
   team_id: number | null;
-  role: 'player' | 'mod' | 'admin';
+  role: 'player' | 'mod' | 'admin' | 'spectator';
   is_active: number;
   is_captain: number;
   created_at: string;
@@ -75,7 +75,9 @@ export interface JwtPayload {
   exp: number;
 }
 
-export type GameStatus = 'scheduled' | 'active' | 'completed' | 'cancelled';
+export type GameStatus = 'scheduled' | 'active' | 'completed' | 'cancelled' | 'golden_score';
+export type EventSide = 'offense' | 'defense';
+export type InningHalf = 'top' | 'bottom';
 export type ChallengeStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
 export type TournamentStatus = 'draft' | 'active' | 'completed';
 export type TournamentFormat = 'round_robin';
@@ -105,10 +107,35 @@ export interface Game {
   away_runs: number;
   home_bases: number;
   away_bases: number;
+  home_score: number;
+  away_score: number;
+  total_innings: number;
+  current_inning: number;
+  current_half: InningHalf;
   winner_team_id: number | null;
   round: number | null;
   game_number: number | null;
+  scheduled_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
   created_at: string;
+}
+
+export interface HalfInning {
+  id: number;
+  game_id: number;
+  inning_number: number;
+  half: InningHalf;
+  batting_team_id: number;
+  fielding_team_id: number;
+  outs: number;
+  strikes: number;
+  runs_scored: number;
+  is_complete: number;
+  ended_at: string | null;
+  first_base: number | null;
+  second_base: number | null;
+  third_base: number | null;
 }
 
 export interface GameBaseState {

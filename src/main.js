@@ -16,6 +16,9 @@ import { schedulePage } from './pages/schedule.js';
 import { gamePage } from './pages/game.js';
 import { challengesPage } from './pages/challenges.js';
 import { tournamentPage } from './pages/tournament.js';
+import { spectatorPage } from './pages/spectator.js';
+import { spectatorGamePage } from './pages/spectator-game.js';
+import { registerSpectatorPage } from './pages/register-spectator.js';
 import { initTheme } from './theme.js';
 import './style.css';
 
@@ -26,6 +29,7 @@ initTheme();
 route('/', dashboardPage);
 route('/login', loginPage);
 route('/register', registerPage);
+route('/register-spectator', registerSpectatorPage);
 route('/team/:id', teamPage);
 route('/player/:id', playerPage);
 route('/leaderboard', leaderboardPage);
@@ -38,6 +42,8 @@ route('/schedule', schedulePage);
 route('/game/:id', gamePage);
 route('/challenges', challengesPage);
 route('/tournament/:id', tournamentPage);
+route('/spectator', spectatorPage);
+route('/spectator/:id', spectatorGamePage);
 route('/admin', adminPage);
 
 // Init

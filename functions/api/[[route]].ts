@@ -11,6 +11,7 @@ import { statsRoutes } from '../routes/stats';
 import { tournamentRoutes } from '../routes/tournaments';
 import { gameRoutes } from '../routes/games';
 import { challengeRoutes } from '../routes/challenges';
+import { spectatorRoutes } from '../routes/spectator';
 
 const app = new Hono<{ Bindings: Env }>().basePath('/api');
 
@@ -31,5 +32,6 @@ app.route('/stats', statsRoutes);
 app.route('/tournaments', tournamentRoutes);
 app.route('/games', gameRoutes);
 app.route('/challenges', challengeRoutes);
+app.route('/spectator', spectatorRoutes);
 
 export const onRequest = handle(app);

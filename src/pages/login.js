@@ -21,6 +21,7 @@ export async function loginPage(app) {
           <button type="submit" class="btn btn-primary btn-full" id="login-btn">Sign In</button>
         </form>
         <p class="auth-link">New player? <a href="#/register">Register with invite code</a></p>
+        <p class="auth-link">Just want to watch? <a href="#/register-spectator">Join as Spectator</a></p>
       </div>
     </div>`;
 
