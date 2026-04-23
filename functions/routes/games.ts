@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { Env } from '../types';
 import { authRequired, adminRequired } from '../middleware/auth';
 import { logAudit } from '../services/audit';
-import { clearSeriesBasesForGame, ensureInitialHalfInning, autoActivateDueGames, replayGameEvents } from '../services/game-engine';
+import { clearSeriesBasesForGame, ensureInitialHalfInning, autoActivateDueGames, autoEndStaleGames, replayGameEvents } from '../services/game-engine';
 import { updateTournamentStandings } from './tournaments';
 
 export const gameRoutes = new Hono<{ Bindings: Env }>();
@@ -77,7 +77,7 @@ gameRoutes.post('/', authRequired, adminRequired, async (c) => {
 
 // List games with filters
 gameRoutes.get('/', authRequired, async (c) => {
-  await autoActivateDueGames(c.env.DB);
+  await autoActivateDueGames(c.env.DB); await autoEndStaleGames(c.env.DB);
   const seriesId = c.req.query('series_id');
   const tournamentId = c.req.query('tournament_id');
   const teamId = c.req.query('team_id');
@@ -109,7 +109,7 @@ gameRoutes.get('/', authRequired, async (c) => {
 
 // Get full schedule view (grouped by date)
 gameRoutes.get('/schedule', authRequired, async (c) => {
-  await autoActivateDueGames(c.env.DB);
+  await autoActivateDueGames(c.env.DB); await autoEndStaleGames(c.env.DB);
   const seriesId = c.req.query('series_id');
   const teamId = c.req.query('team_id');
 
@@ -135,7 +135,7 @@ gameRoutes.get('/schedule', authRequired, async (c) => {
 
 // Get my team's schedule
 gameRoutes.get('/my-schedule', authRequired, async (c) => {
-  await autoActivateDueGames(c.env.DB);
+  await autoActivateDueGames(c.env.DB); await autoEndStaleGames(c.env.DB);
   const user = c.get('user');
   if (!user.team_id) return c.json({ games: [] });
 
@@ -157,7 +157,7 @@ gameRoutes.get('/my-schedule', authRequired, async (c) => {
 
 // Get single game with full details
 gameRoutes.get('/:id', authRequired, async (c) => {
-  await autoActivateDueGames(c.env.DB);
+  await autoActivateDueGames(c.env.DB); await autoEndStaleGames(c.env.DB);
   const id = c.req.param('id');
 
   const game = await c.env.DB.prepare(

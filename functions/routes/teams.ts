@@ -22,20 +22,34 @@ teamRoutes.get('/:id', authRequired, async (c) => {
   return c.json({ team });
 });
 
+const TEAM_COLOR_PALETTE = [
+  '#1e88e5', '#e53935', '#43a047', '#fb8c00', '#8e24aa',
+  '#00acc1', '#f4511e', '#5e35b1', '#00897b', '#c0ca33',
+];
+
+async function nextAvailableColor(db: D1Database): Promise<string> {
+  const used = new Set<string>();
+  const rows = await db.prepare('SELECT color FROM teams WHERE color IS NOT NULL').all<{ color: string }>();
+  for (const r of (rows.results || [])) used.add(r.color);
+  for (const c of TEAM_COLOR_PALETTE) if (!used.has(c)) return c;
+  return TEAM_COLOR_PALETTE[0];
+}
+
 // Create team (admin)
 teamRoutes.post('/', authRequired, adminRequired, async (c) => {
-  const { name } = await c.req.json();
+  const { name, color } = await c.req.json();
   if (!name) return c.json({ error: 'Team name required' }, 400);
 
   const invite_code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const assignedColor = color || await nextAvailableColor(c.env.DB);
 
   try {
     const result = await c.env.DB.prepare(
-      'INSERT INTO teams (name, invite_code) VALUES (?, ?)'
-    ).bind(name, invite_code).run();
+      'INSERT INTO teams (name, invite_code, color) VALUES (?, ?, ?)'
+    ).bind(name, invite_code, assignedColor).run();
 
     return c.json({
-      team: { id: result.meta.last_row_id, name, invite_code },
+      team: { id: result.meta.last_row_id, name, invite_code, color: assignedColor },
     }, 201);
   } catch (e: any) {
     if (e.message?.includes('UNIQUE')) {
@@ -48,10 +62,16 @@ teamRoutes.post('/', authRequired, adminRequired, async (c) => {
 // Update team (admin)
 teamRoutes.put('/:id', authRequired, adminRequired, async (c) => {
   const id = c.req.param('id');
-  const { name } = await c.req.json();
-  if (!name) return c.json({ error: 'Team name required' }, 400);
+  const { name, color } = await c.req.json();
+  if (!name && !color) return c.json({ error: 'Nothing to update' }, 400);
 
-  await c.env.DB.prepare('UPDATE teams SET name = ? WHERE id = ?').bind(name, id).run();
+  if (name && color) {
+    await c.env.DB.prepare('UPDATE teams SET name = ?, color = ? WHERE id = ?').bind(name, color, id).run();
+  } else if (name) {
+    await c.env.DB.prepare('UPDATE teams SET name = ? WHERE id = ?').bind(name, id).run();
+  } else {
+    await c.env.DB.prepare('UPDATE teams SET color = ? WHERE id = ?').bind(color, id).run();
+  }
   return c.json({ success: true });
 });
 

@@ -15,7 +15,7 @@ export function renderDiamond(container, state) {
   const third = state.third_base_name || null;
 
   const isLight = document.documentElement.classList.contains('light');
-  const teamColor = getTeamColor(state.team_id);
+  const teamColor = state.color || getTeamColor(state.team_id);
   const glowId = `glow-${state.team_id || 0}`;
 
   // Theme colors

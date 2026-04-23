@@ -78,6 +78,51 @@ export async function autoActivateDueGames(db: D1Database): Promise<void> {
   }
 }
 
+/**
+ * Auto-end games that are still active past 1:00 AM Central on the day AFTER
+ * their scheduled_date. Winner is determined by current score (ties = no winner).
+ * Call from the same read endpoints as autoActivateDueGames.
+ */
+export async function autoEndStaleGames(db: D1Database): Promise<void> {
+  const today = centralDate();
+  const timeHM = centralTimeHM();
+
+  // A game expires when (now Central) >= (scheduled_date + 1 day, 01:00 Central).
+  // SQL: date(scheduled_date, '+1 day') < today  OR  (= today AND time >= '01:00')
+  const stale = await db.prepare(
+    `SELECT id, home_runs, away_runs, home_team_id, away_team_id, tournament_id
+     FROM games
+     WHERE status IN ('active', 'extra_innings')
+       AND scheduled_date IS NOT NULL
+       AND (
+         date(scheduled_date, '+1 day') < ?
+         OR (date(scheduled_date, '+1 day') = ? AND ? >= '01:00')
+       )`
+  ).bind(today, today, timeHM).all<any>();
+
+  const now = centralStamp();
+  for (const g of (stale.results || [])) {
+    const winner =
+      g.home_runs > g.away_runs ? g.home_team_id :
+      g.away_runs > g.home_runs ? g.away_team_id :
+      null;
+
+    await db.prepare(
+      "UPDATE games SET status = 'completed', completed_at = ?, winner_team_id = ? WHERE id = ?"
+    ).bind(now, winner, g.id).run();
+
+    // Mark any open half-innings as complete
+    await db.prepare(
+      "UPDATE half_innings SET is_complete = 1, ended_at = ? WHERE game_id = ? AND is_complete = 0"
+    ).bind(now, g.id).run();
+
+    if (g.tournament_id) {
+      const freshGame = await db.prepare('SELECT * FROM games WHERE id = ?').bind(g.id).first<any>();
+      if (freshGame) await updateTournamentStandingsInline(db, g.tournament_id, freshGame);
+    }
+  }
+}
+
 export function determineEventSide(game: Game, playerTeamId: number): EventSide {
   const battingTeamId = game.current_half === 'top' ? game.away_team_id : game.home_team_id;
   if (playerTeamId === battingTeamId) return 'offense';

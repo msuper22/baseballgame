@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS teams (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   name       TEXT NOT NULL UNIQUE,
   invite_code TEXT NOT NULL UNIQUE,
+  color      TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 

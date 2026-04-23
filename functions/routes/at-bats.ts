@@ -108,7 +108,15 @@ atBatRoutes.post('/', authRequired, async (c) => {
     await ensureInitialHalfInning(c.env.DB, game.id, game.home_team_id, game.away_team_id);
     game = await c.env.DB.prepare('SELECT * FROM games WHERE id = ?').bind(game.id).first<any>();
 
-    const halfInning = await getCurrentHalfInning(c.env.DB, game);
+    let halfInning = await getCurrentHalfInning(c.env.DB, game);
+    // Stranded-game recovery: an active game with no half-inning matching its
+    // current_inning/current_half was played under old code that didn't track
+    // half_innings. Replay rebuilds it from at_bats so this event has a home.
+    if (!halfInning) {
+      await replayGameEvents(c.env.DB, game.id);
+      game = await c.env.DB.prepare('SELECT * FROM games WHERE id = ?').bind(game.id).first<any>();
+      halfInning = await getCurrentHalfInning(c.env.DB, game);
+    }
     if (!halfInning) return c.json({ error: 'No current half-inning for this game' }, 500);
 
     const side = determineEventSide(game, player.team_id);

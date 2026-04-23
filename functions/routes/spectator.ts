@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
 import { Env } from '../types';
 import { authRequired } from '../middleware/auth';
-import { getGameStateWithNames, autoActivateDueGames } from '../services/game-engine';
+import { getGameStateWithNames, autoActivateDueGames, autoEndStaleGames } from '../services/game-engine';
 import { containsProfanity } from '../services/profanity';
 
 export const spectatorRoutes = new Hono<{ Bindings: Env }>();
 
 // List all active games for spectating, with base states + current half-inning
 spectatorRoutes.get('/games', authRequired, async (c) => {
-  await autoActivateDueGames(c.env.DB);
+  await autoActivateDueGames(c.env.DB); await autoEndStaleGames(c.env.DB);
   const games = await c.env.DB.prepare(`
     SELECT g.*, ht.name as home_team_name, at2.name as away_team_name
     FROM games g

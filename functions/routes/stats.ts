@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Env } from '../types';
 import { authRequired } from '../middleware/auth';
-import { autoActivateDueGames } from '../services/game-engine';
+import { autoActivateDueGames, autoEndStaleGames } from '../services/game-engine';
 
 export const statsRoutes = new Hono<{ Bindings: Env }>();
 
@@ -38,7 +38,7 @@ statsRoutes.get('/game-state/:teamId', authRequired, async (c) => {
 
 // Get all team game states (for dashboard or specific series)
 statsRoutes.get('/game-states', authRequired, async (c) => {
-  await autoActivateDueGames(c.env.DB);
+  await autoActivateDueGames(c.env.DB); await autoEndStaleGames(c.env.DB);
   const seriesId = c.req.query('series_id');
 
   // Resolve the series we're reporting on
@@ -57,6 +57,7 @@ statsRoutes.get('/game-states', authRequired, async (c) => {
     SELECT
       bs.series_id, bs.team_id, bs.total_runs, bs.total_bases,
       t.name as team_name,
+      t.color as color,
       hi.first_base  AS first_base,
       hi.second_base AS second_base,
       hi.third_base  AS third_base,
