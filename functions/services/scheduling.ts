@@ -46,21 +46,23 @@ export function generateRoundRobin(
     let gameNumber = 1;
 
     for (let match = 0; match < gamesPerRound; match++) {
+      // Circle positions: position 0 is fixed; positions 1..n-1 are the rotating array.
+      // Each round pairs position m with position n-1-m.
       let home: number;
       let away: number;
 
       if (match === 0) {
-        home = fixed;
-        away = rotating[0];
+        home = fixed;                         // position 0
+        away = rotating[rotating.length - 1]; // position n-1
       } else {
-        home = rotating[match];
-        away = rotating[n - 2 - match]; // mirror pairing
+        home = rotating[match - 1];           // position match
+        away = rotating[rotating.length - 1 - match]; // position n-1-match
       }
 
       // Skip BYE games
       if (home === -1 || away === -1) continue;
 
-      // Alternate home/away across rounds for fairness
+      // Alternate home/away across rounds for fairness on the fixed-team matchup
       if (round % 2 === 1 && match === 0) {
         [home, away] = [away, home];
       }

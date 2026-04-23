@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS players (
   team_id      INTEGER REFERENCES teams(id),
   role         TEXT NOT NULL DEFAULT 'player',
   is_active    INTEGER NOT NULL DEFAULT 1,
+  is_captain   INTEGER NOT NULL DEFAULT 0,
   created_at   TEXT DEFAULT (datetime('now'))
 );
 
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS at_bats (
   runs_scored INTEGER NOT NULL DEFAULT 0,
   description TEXT,
   entered_by  INTEGER REFERENCES players(id),
+  game_id     INTEGER REFERENCES games(id),
   created_at  TEXT DEFAULT (datetime('now'))
 );
 
