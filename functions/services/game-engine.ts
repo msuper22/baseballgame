@@ -1,5 +1,82 @@
 import { HitType, HIT_BASES, Game, HalfInning, EventSide, InningHalf } from '../types';
 import { simulateAtBat, simulateDefenseEvent, RunnerState } from './simulation';
+import { centralDate, centralTimeHM, centralStamp } from './tz';
+
+/**
+ * Reset series-level runner positions for both teams in a game.
+ * Called when a game transitions from scheduled to active — matches real
+ * baseball where each new game starts with empty bases. Keeps series-level
+ * run/total-base accumulators intact.
+ */
+export async function clearSeriesBasesForGame(
+  db: D1Database,
+  seriesId: number,
+  homeTeamId: number,
+  awayTeamId: number,
+): Promise<void> {
+  await db.prepare(
+    `UPDATE base_state SET first_base = NULL, second_base = NULL, third_base = NULL
+     WHERE series_id = ? AND team_id IN (?, ?)`
+  ).bind(seriesId, homeTeamId, awayTeamId).run();
+}
+
+/**
+ * Ensure a game has a top-of-1st half-inning row. Idempotent — safe to call
+ * every time a game transitions scheduled→active. Also sets current_inning=1
+ * and current_half='top' on the game if they weren't already.
+ */
+export async function ensureInitialHalfInning(
+  db: D1Database,
+  gameId: number,
+  homeTeamId: number,
+  awayTeamId: number,
+): Promise<void> {
+  const existing = await db.prepare(
+    `SELECT id FROM half_innings WHERE game_id = ? LIMIT 1`
+  ).bind(gameId).first();
+  if (existing) return;
+
+  await db.prepare(
+    `INSERT INTO half_innings (game_id, inning_number, half, batting_team_id, fielding_team_id)
+     VALUES (?, 1, 'top', ?, ?)`
+  ).bind(gameId, awayTeamId, homeTeamId).run();
+
+  await db.prepare(
+    `UPDATE games SET current_inning = 1, current_half = 'top' WHERE id = ?`
+  ).bind(gameId).run();
+}
+
+/**
+ * Auto-activate any scheduled games whose scheduled_date + scheduled_time
+ * have passed. Call from read-heavy endpoints (schedule, game list, stats)
+ * so the game flips to 'active' without a manual admin click.
+ */
+export async function autoActivateDueGames(db: D1Database): Promise<void> {
+  const today = centralDate();
+  const timeHM = centralTimeHM();
+
+  // Only auto-activate games that are either standalone (no tournament) or
+  // belong to an ACTIVE tournament. Games in draft tournaments must never
+  // auto-start — the admin has to promote the tournament first.
+  const due = await db.prepare(
+    `SELECT g.id, g.series_id, g.home_team_id, g.away_team_id FROM games g
+     LEFT JOIN tournaments t ON g.tournament_id = t.id
+     WHERE g.status = 'scheduled'
+       AND (g.tournament_id IS NULL OR t.status = 'active')
+       AND (
+         g.scheduled_date < ?
+         OR (g.scheduled_date = ? AND (g.scheduled_time IS NULL OR g.scheduled_time <= ?))
+       )`
+  ).bind(today, today, timeHM).all<any>();
+
+  for (const g of (due.results || [])) {
+    await db.prepare("UPDATE games SET status = 'active' WHERE id = ?").bind(g.id).run();
+    if (g.series_id) {
+      await clearSeriesBasesForGame(db, g.series_id, g.home_team_id, g.away_team_id);
+    }
+    await ensureInitialHalfInning(db, g.id, g.home_team_id, g.away_team_id);
+  }
+}
 
 export function determineEventSide(game: Game, playerTeamId: number): EventSide {
   const battingTeamId = game.current_half === 'top' ? game.away_team_id : game.home_team_id;
@@ -25,16 +102,9 @@ export async function processOffenseEvent(
   description: string | null,
   enteredBy: number
 ): Promise<{ atBatId: number; runsScored: number; scoringPlayerIds: number[]; inningChanged: boolean }> {
-  // Credit time validation: if this half-inning is complete and credit_time > ended_at,
-  // the event should go to the next offensive half-inning for this team
-  let targetHalfInning = halfInning;
-  let targetGame = game;
-  if (halfInning.is_complete && halfInning.ended_at && creditTime > halfInning.ended_at) {
-    const next = await findNextOffensiveHalfInning(db, game, halfInning.batting_team_id, halfInning.inning_number, halfInning.half);
-    if (!next) throw new Error('Game is over — no more offensive innings available');
-    targetHalfInning = next.halfInning;
-    targetGame = next.game;
-  }
+  // Events ALWAYS apply to the game's current half-inning, never back-date.
+  const targetHalfInning = halfInning;
+  const targetGame = game;
 
   const currentBases: RunnerState = {
     first: targetHalfInning.first_base,
@@ -65,21 +135,45 @@ export async function processOffenseEvent(
     result.runsScored, targetHalfInning.id
   ).run();
 
-  // Update game score
-  if (result.runsScored > 0) {
-    const isHome = targetHalfInning.batting_team_id === targetGame.home_team_id;
-    const scoreCol = isHome ? 'home_score' : 'away_score';
+  // Update game score. Keep the denormalized *_runs / *_bases columns in sync
+  // with *_score so existing UI (which reads home_runs / away_runs) stays correct.
+  const isHome = targetHalfInning.batting_team_id === targetGame.home_team_id;
+  if (isHome) {
     await db.prepare(
-      `UPDATE games SET ${scoreCol} = ${scoreCol} + ? WHERE id = ?`
-    ).bind(result.runsScored, targetGame.id).run();
+      `UPDATE games SET home_score = home_score + ?, home_runs = home_runs + ?, home_bases = home_bases + ? WHERE id = ?`
+    ).bind(result.runsScored, result.runsScored, bases, targetGame.id).run();
+  } else {
+    await db.prepare(
+      `UPDATE games SET away_score = away_score + ?, away_runs = away_runs + ?, away_bases = away_bases + ? WHERE id = ?`
+    ).bind(result.runsScored, result.runsScored, bases, targetGame.id).run();
+  }
 
-    // Golden score: first team to score wins
-    const currentGame = await db.prepare('SELECT * FROM games WHERE id = ?').bind(targetGame.id).first<Game>();
-    if (currentGame && currentGame.status === 'golden_score') {
-      const winNow = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      await db.prepare(
-        "UPDATE games SET status = 'completed', completed_at = ? WHERE id = ?"
-      ).bind(winNow, targetGame.id).run();
+  // Walk-off check: if the home team just scored in the bottom half and now leads,
+  // the game ends immediately — no need to wait for 3 outs. This applies to:
+  //   - Bottom of the last regulation inning (home team was trailing or tied, scores to lead)
+  //   - Bottom of any extra inning (home team scores to lead)
+  let walkoff = false;
+  if (result.runsScored > 0 && isHome && targetGame.current_half === 'bottom') {
+    const isLateGame = targetGame.current_inning >= targetGame.total_innings;
+    const isExtra = targetGame.status === 'extra_innings';
+    if (isLateGame || isExtra) {
+      const updatedGame = await db.prepare('SELECT * FROM games WHERE id = ?').bind(targetGame.id).first<Game>();
+      if (updatedGame && updatedGame.home_score > updatedGame.away_score) {
+        const now = centralStamp();
+        // Mark the current half-inning as complete
+        await db.prepare(
+          'UPDATE half_innings SET is_complete = 1, ended_at = ? WHERE id = ?'
+        ).bind(now, targetHalfInning.id).run();
+        // Complete the game with home team as winner
+        await db.prepare(
+          "UPDATE games SET status = 'completed', completed_at = ?, winner_team_id = ? WHERE id = ?"
+        ).bind(now, updatedGame.home_team_id, targetGame.id).run();
+        // Update tournament standings if applicable
+        if (updatedGame.tournament_id) {
+          await updateTournamentStandingsInline(db, updatedGame.tournament_id, updatedGame);
+        }
+        walkoff = true;
+      }
     }
   }
 
@@ -87,7 +181,7 @@ export async function processOffenseEvent(
     atBatId: insertResult.meta.last_row_id as number,
     runsScored: result.runsScored,
     scoringPlayerIds: result.scoringPlayerIds,
-    inningChanged: targetHalfInning.id !== halfInning.id,
+    inningChanged: targetHalfInning.id !== halfInning.id || walkoff,
   };
 }
 
@@ -123,7 +217,11 @@ export async function processDefenseEvent(
 
   let inningTransitioned = false;
   if (defenseResult.inningEnded) {
-    await transitionInning(db, game);
+    if (defenseResult.sidesSwap) {
+      await swapSidesOnDefenseHR(db, game);
+    } else {
+      await transitionInning(db, game);
+    }
     inningTransitioned = true;
   }
 
@@ -134,8 +232,80 @@ export async function processDefenseEvent(
   };
 }
 
+// Duplicated here (rather than imported from routes/tournaments.ts) to avoid
+// a circular import — tournaments.ts already imports this module.
+async function updateTournamentStandingsInline(db: D1Database, tournamentId: number, game: any): Promise<void> {
+  const homeWon = game.home_runs > game.away_runs;
+  const tie = game.home_runs === game.away_runs;
+
+  await db.prepare(
+    `UPDATE tournament_standings SET
+      wins = wins + ?, losses = losses + ?, ties = ties + ?,
+      runs_for = runs_for + ?, runs_against = runs_against + ?,
+      games_played = games_played + 1
+     WHERE tournament_id = ? AND team_id = ?`
+  ).bind(
+    homeWon ? 1 : 0, !homeWon && !tie ? 1 : 0, tie ? 1 : 0,
+    game.home_runs, game.away_runs,
+    tournamentId, game.home_team_id
+  ).run();
+
+  await db.prepare(
+    `UPDATE tournament_standings SET
+      wins = wins + ?, losses = losses + ?, ties = ties + ?,
+      runs_for = runs_for + ?, runs_against = runs_against + ?,
+      games_played = games_played + 1
+     WHERE tournament_id = ? AND team_id = ?`
+  ).bind(
+    !homeWon && !tie ? 1 : 0, homeWon ? 1 : 0, tie ? 1 : 0,
+    game.away_runs, game.home_runs,
+    tournamentId, game.away_team_id
+  ).run();
+}
+
+/**
+ * Defense HR: current half-inning ends, fielding team becomes batting team.
+ * Unlike transitionInning, this NEVER completes the game — it just swaps sides.
+ * If the swap pushes us past regulation, status flips to 'extra_innings'.
+ */
+async function swapSidesOnDefenseHR(db: D1Database, game: Game): Promise<void> {
+  const now = centralStamp();
+
+  await db.prepare(
+    'UPDATE half_innings SET is_complete = 1, ended_at = ?, strikes = 0 WHERE game_id = ? AND inning_number = ? AND half = ?'
+  ).bind(now, game.id, game.current_inning, game.current_half).run();
+
+  let nextInning = game.current_inning;
+  let nextHalf: InningHalf;
+  if (game.current_half === 'top') {
+    nextHalf = 'bottom';
+  } else {
+    nextInning = game.current_inning + 1;
+    nextHalf = 'top';
+  }
+
+  const battingTeamId = nextHalf === 'top' ? game.away_team_id : game.home_team_id;
+  const fieldingTeamId = nextHalf === 'top' ? game.home_team_id : game.away_team_id;
+
+  const exists = await db.prepare(
+    'SELECT id FROM half_innings WHERE game_id = ? AND inning_number = ? AND half = ?'
+  ).bind(game.id, nextInning, nextHalf).first();
+
+  if (!exists) {
+    await db.prepare(
+      `INSERT INTO half_innings (game_id, inning_number, half, batting_team_id, fielding_team_id)
+       VALUES (?, ?, ?, ?, ?)`
+    ).bind(game.id, nextInning, nextHalf, battingTeamId, fieldingTeamId).run();
+  }
+
+  const newStatus = nextInning > game.total_innings ? 'extra_innings' : game.status;
+  await db.prepare(
+    'UPDATE games SET current_inning = ?, current_half = ?, status = ? WHERE id = ?'
+  ).bind(nextInning, nextHalf, newStatus, game.id).run();
+}
+
 export async function transitionInning(db: D1Database, game: Game): Promise<void> {
-  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const now = centralStamp();
 
   // Mark current half-inning as complete
   await db.prepare(
@@ -152,32 +322,44 @@ export async function transitionInning(db: D1Database, game: Game): Promise<void
     nextHalf = 'top';
   }
 
-  // Check if game is over
-  if (nextInning > game.total_innings && nextHalf === 'top') {
-    // Check for tie — enter golden score
-    const currentGame = await db.prepare('SELECT * FROM games WHERE id = ?').bind(game.id).first<Game>();
-    if (currentGame && currentGame.home_score === currentGame.away_score) {
-      // Golden score: both teams on offense, first to score wins
-      await db.prepare(
-        "UPDATE games SET status = 'golden_score', current_inning = ?, current_half = 'top' WHERE id = ?"
-      ).bind(nextInning, game.id).run();
+  // --- Game-over checks (real baseball rules) ---
+  const freshGame = await db.prepare('SELECT * FROM games WHERE id = ?').bind(game.id).first<Game>();
 
-      // Create half-innings for both teams simultaneously
+  // 1) "Bottom not needed" — after the top of the last regulation inning (or any
+  //    extra inning top), if the home team is already ahead, the game ends
+  //    immediately. The home team doesn't need to bat.
+  if (nextHalf === 'bottom' && nextInning >= (freshGame?.total_innings ?? game.total_innings)) {
+    if (freshGame && freshGame.home_score > freshGame.away_score) {
       await db.prepare(
-        `INSERT INTO half_innings (game_id, inning_number, half, batting_team_id, fielding_team_id)
-         VALUES (?, ?, 'top', ?, ?)`
-      ).bind(game.id, nextInning, game.away_team_id, game.home_team_id).run();
-      await db.prepare(
-        `INSERT INTO half_innings (game_id, inning_number, half, batting_team_id, fielding_team_id)
-         VALUES (?, ?, 'bottom', ?, ?)`
-      ).bind(game.id, nextInning, game.home_team_id, game.away_team_id).run();
+        "UPDATE games SET status = 'completed', completed_at = ?, winner_team_id = ? WHERE id = ?"
+      ).bind(now, freshGame.home_team_id, game.id).run();
+
+      if (freshGame.tournament_id) {
+        await updateTournamentStandingsInline(db, freshGame.tournament_id, freshGame);
+      }
       return;
     }
+  }
 
-    await db.prepare(
-      "UPDATE games SET status = 'completed', completed_at = ?, current_half = 'bottom' WHERE id = ?"
-    ).bind(now, game.id).run();
-    return;
+  // 2) End-of-bottom check — after the bottom of the last regulation inning (or
+  //    any extra inning bottom), if scores differ the game is over.
+  if (nextHalf === 'top' && nextInning > (freshGame?.total_innings ?? game.total_innings)) {
+    const tied = freshGame && freshGame.home_score === freshGame.away_score;
+
+    if (!tied) {
+      const winnerId = freshGame && freshGame.home_score > freshGame.away_score ? freshGame.home_team_id :
+                       freshGame && freshGame.away_score > freshGame.home_score ? freshGame.away_team_id : null;
+
+      await db.prepare(
+        "UPDATE games SET status = 'completed', completed_at = ?, current_half = 'bottom', winner_team_id = ? WHERE id = ?"
+      ).bind(now, winnerId, game.id).run();
+
+      if (freshGame && freshGame.tournament_id) {
+        await updateTournamentStandingsInline(db, freshGame.tournament_id, freshGame);
+      }
+      return;
+    }
+    // Tied → fall through to create the next top-half as an extra inning
   }
 
   // Determine batting/fielding for next half
@@ -190,106 +372,163 @@ export async function transitionInning(db: D1Database, game: Game): Promise<void
      VALUES (?, ?, ?, ?, ?)`
   ).bind(game.id, nextInning, nextHalf, battingTeamId, fieldingTeamId).run();
 
-  // Update game state
+  // Entering or continuing extra innings: flip the game status for the UI.
+  const newStatus = nextInning > game.total_innings ? 'extra_innings' : game.status;
+
   await db.prepare(
-    'UPDATE games SET current_inning = ?, current_half = ? WHERE id = ?'
-  ).bind(nextInning, nextHalf, game.id).run();
+    'UPDATE games SET current_inning = ?, current_half = ?, status = ? WHERE id = ?'
+  ).bind(nextInning, nextHalf, newStatus, game.id).run();
 }
 
-async function findNextOffensiveHalfInning(
-  db: D1Database,
-  game: Game,
-  teamId: number,
-  afterInning: number,
-  afterHalf: InningHalf
-): Promise<{ halfInning: HalfInning; game: Game } | null> {
-  // Look for an existing incomplete half-inning where this team bats
-  const existing = await db.prepare(
-    `SELECT * FROM half_innings WHERE game_id = ? AND batting_team_id = ? AND is_complete = 0
-     AND (inning_number > ? OR (inning_number = ? AND half > ?))
-     ORDER BY inning_number ASC, half ASC LIMIT 1`
-  ).bind(game.id, teamId, afterInning, afterInning, afterHalf).first<HalfInning>();
-
-  if (existing) {
-    const currentGame = await db.prepare('SELECT * FROM games WHERE id = ?').bind(game.id).first<Game>();
-    return { halfInning: existing, game: currentGame! };
-  }
-
-  // Check if the game's current half-inning is for this team and is not complete
-  const current = await db.prepare(
-    'SELECT * FROM half_innings WHERE game_id = ? AND inning_number = ? AND half = ? AND batting_team_id = ? AND is_complete = 0'
-  ).bind(game.id, game.current_inning, game.current_half, teamId).first<HalfInning>();
-
-  if (current) {
-    return { halfInning: current, game };
-  }
-
-  return null;
-}
-
+/**
+ * Full replay: wipe all derived state for this game and re-apply every at-bat
+ * in chronological order through the engine. Used after admin edit/delete so
+ * that inning transitions and game-completion are fully reversible.
+ */
 export async function replayGameEvents(
   db: D1Database,
   gameId: number
 ): Promise<void> {
-  // Get all half-innings for this game in order
-  const halfInnings = await db.prepare(
-    'SELECT * FROM half_innings WHERE game_id = ? ORDER BY inning_number ASC, half ASC'
-  ).bind(gameId).all<HalfInning>();
+  const originalGame = await db.prepare('SELECT * FROM games WHERE id = ?').bind(gameId).first<any>();
+  if (!originalGame) return;
 
-  let homeScore = 0;
-  let awayScore = 0;
+  // 1. If the game was completed via a tournament, roll back prior standings.
+  if (originalGame.status === 'completed' && originalGame.tournament_id) {
+    await rollbackTournamentStandingsInline(db, originalGame.tournament_id, originalGame);
+  }
 
-  const game = await db.prepare('SELECT * FROM games WHERE id = ?').bind(gameId).first<Game>();
-  if (!game) return;
+  // 2. Snapshot at-bats for this game in chronological order.
+  const abRes = await db.prepare(
+    `SELECT id, player_id, team_id, hit_type, description, entered_by, created_at, credit_time, event_side
+     FROM at_bats WHERE game_id = ? ORDER BY created_at ASC, id ASC`
+  ).bind(gameId).all<any>();
+  const atBats = abRes.results || [];
 
-  for (const hi of halfInnings.results) {
-    // Get offense events for this half-inning
-    const offenseEvents = await db.prepare(
-      "SELECT player_id, hit_type FROM at_bats WHERE half_inning_id = ? AND event_side = 'offense' ORDER BY created_at ASC"
-    ).bind(hi.id).all<{ player_id: number; hit_type: HitType }>();
+  // 3. Wipe derived state. Null out at_bats.half_inning_id first so we can DELETE half_innings.
+  await db.prepare('UPDATE at_bats SET half_inning_id = NULL WHERE game_id = ?').bind(gameId).run();
+  await db.prepare('DELETE FROM half_innings WHERE game_id = ?').bind(gameId).run();
+  await db.prepare('DELETE FROM at_bats WHERE game_id = ?').bind(gameId).run();
 
-    // Get defense events for this half-inning
-    const defenseEvents = await db.prepare(
-      "SELECT hit_type FROM at_bats WHERE half_inning_id = ? AND event_side = 'defense' ORDER BY created_at ASC"
-    ).bind(hi.id).all<{ hit_type: HitType }>();
+  // 4. Reset the game row (preserve 'cancelled').
+  const resetStatus = originalGame.status === 'cancelled' ? 'cancelled' : 'active';
+  await db.prepare(
+    `UPDATE games SET status = ?, current_inning = 1, current_half = 'top',
+     completed_at = NULL, winner_team_id = NULL,
+     home_score = 0, away_score = 0, home_runs = 0, away_runs = 0,
+     home_bases = 0, away_bases = 0 WHERE id = ?`
+  ).bind(resetStatus, gameId).run();
 
-    // Replay offense
-    let bases: RunnerState = { first: null, second: null, third: null };
-    let hiRuns = 0;
-    for (const e of offenseEvents.results) {
-      const result = simulateAtBat(bases, e.player_id, e.hit_type);
-      bases = result.newBases;
-      hiRuns += result.runsScored;
-    }
+  // 5. Reset per-team rolling runner state.
+  await db.prepare(
+    `UPDATE game_base_state SET first_base = NULL, second_base = NULL, third_base = NULL,
+     total_runs = 0, total_bases = 0 WHERE game_id = ?`
+  ).bind(gameId).run();
 
-    // Replay defense
-    let strikes = 0;
-    let outs = 0;
-    for (const e of defenseEvents.results) {
-      const dr = simulateDefenseEvent(strikes, outs, e.hit_type);
-      strikes = dr.totalStrikes;
-      outs = dr.totalOuts;
-    }
+  if (atBats.length === 0) return;
 
-    const isComplete = outs >= 3 ? 1 : 0;
+  // 6. Seed a fresh top-of-1 half-inning.
+  await ensureInitialHalfInning(db, gameId, originalGame.home_team_id, originalGame.away_team_id);
 
-    // Update half-inning state
-    await db.prepare(
-      `UPDATE half_innings SET first_base = ?, second_base = ?, third_base = ?,
-       runs_scored = ?, outs = ?, strikes = ?, is_complete = ? WHERE id = ?`
-    ).bind(bases.first, bases.second, bases.third, hiRuns, outs, strikes, isComplete, hi.id).run();
+  // 7. Replay each at-bat through the engine. Re-fetch game + half on every step
+  // because defense events may trigger transitions that change the game state.
+  for (const a of atBats) {
+    const game = await db.prepare('SELECT * FROM games WHERE id = ?').bind(gameId).first<Game>();
+    if (!game || game.status === 'completed' || game.status === 'cancelled') break;
 
-    if (hi.batting_team_id === game.home_team_id) {
-      homeScore += hiRuns;
+    const half = await getCurrentHalfInning(db, game);
+    if (!half) break;
+
+    let side: EventSide;
+    try { side = determineEventSide(game, a.team_id); }
+    catch { continue; /* player's team no longer in this game — skip */ }
+
+    const ct = a.credit_time || a.created_at || centralStamp();
+
+    let newId: number;
+    if (side === 'offense') {
+      const r = await processOffenseEvent(db, game, half, a.player_id, a.hit_type, ct, a.description, a.entered_by);
+      newId = r.atBatId;
     } else {
-      awayScore += hiRuns;
+      const r = await processDefenseEvent(db, game, half, a.player_id, a.hit_type, ct, a.description, a.entered_by);
+      newId = r.atBatId;
+    }
+
+    // Preserve original created_at for history display
+    if (a.created_at) {
+      await db.prepare('UPDATE at_bats SET created_at = ? WHERE id = ?').bind(a.created_at, newId).run();
     }
   }
 
-  // Update game scores
+  // 8. Rebuild game_base_state from the final half-innings.
+  await rebuildGameBaseStateFromHalves(db, gameId);
+}
+
+async function rollbackTournamentStandingsInline(db: D1Database, tournamentId: number, game: any): Promise<void> {
+  const homeWon = game.home_runs > game.away_runs;
+  const tie = game.home_runs === game.away_runs;
+
   await db.prepare(
-    'UPDATE games SET home_score = ?, away_score = ? WHERE id = ?'
-  ).bind(homeScore, awayScore, gameId).run();
+    `UPDATE tournament_standings SET
+      wins = MAX(0, wins - ?), losses = MAX(0, losses - ?), ties = MAX(0, ties - ?),
+      runs_for = MAX(0, runs_for - ?), runs_against = MAX(0, runs_against - ?),
+      games_played = MAX(0, games_played - 1)
+     WHERE tournament_id = ? AND team_id = ?`
+  ).bind(
+    homeWon ? 1 : 0, !homeWon && !tie ? 1 : 0, tie ? 1 : 0,
+    game.home_runs, game.away_runs,
+    tournamentId, game.home_team_id
+  ).run();
+
+  await db.prepare(
+    `UPDATE tournament_standings SET
+      wins = MAX(0, wins - ?), losses = MAX(0, losses - ?), ties = MAX(0, ties - ?),
+      runs_for = MAX(0, runs_for - ?), runs_against = MAX(0, runs_against - ?),
+      games_played = MAX(0, games_played - 1)
+     WHERE tournament_id = ? AND team_id = ?`
+  ).bind(
+    !homeWon && !tie ? 1 : 0, homeWon ? 1 : 0, tie ? 1 : 0,
+    game.away_runs, game.home_runs,
+    tournamentId, game.away_team_id
+  ).run();
+}
+
+async function rebuildGameBaseStateFromHalves(db: D1Database, gameId: number): Promise<void> {
+  const game = await db.prepare('SELECT * FROM games WHERE id = ?').bind(gameId).first<Game>();
+  if (!game) return;
+
+  const halves = await db.prepare(
+    'SELECT * FROM half_innings WHERE game_id = ? ORDER BY inning_number ASC, half ASC'
+  ).bind(gameId).all<any>();
+
+  // Per-team totals are derived from summed at_bats.
+  const teams = [game.home_team_id, game.away_team_id];
+  const lastHi: Record<number, any> = {};
+  for (const hi of (halves.results || [])) {
+    if (hi.batting_team_id) lastHi[hi.batting_team_id] = hi;
+  }
+
+  for (const teamId of teams) {
+    const totals = await db.prepare(
+      `SELECT COALESCE(SUM(bases), 0) as tb, COALESCE(SUM(runs_scored), 0) as runs
+       FROM at_bats WHERE game_id = ? AND team_id = ? AND event_side = 'offense'`
+    ).bind(gameId, teamId).first<any>();
+
+    const last = lastHi[teamId];
+    await db.prepare(
+      `INSERT INTO game_base_state (game_id, team_id, first_base, second_base, third_base, total_runs, total_bases)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(game_id, team_id) DO UPDATE SET
+         first_base = excluded.first_base,
+         second_base = excluded.second_base,
+         third_base = excluded.third_base,
+         total_runs = excluded.total_runs,
+         total_bases = excluded.total_bases`
+    ).bind(
+      gameId, teamId,
+      last?.first_base ?? null, last?.second_base ?? null, last?.third_base ?? null,
+      totals?.runs ?? 0, totals?.tb ?? 0
+    ).run();
+  }
 }
 
 export async function getGameStateWithNames(db: D1Database, gameId: number) {

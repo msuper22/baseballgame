@@ -21,6 +21,12 @@ app.use('/*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
+// Global error handler — always return JSON, never plain text
+app.onError((err, c) => {
+  console.error('API Error:', err.message, err.stack);
+  return c.json({ error: err.message || 'Internal server error' }, 500);
+});
+
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
 app.route('/auth', authRoutes);

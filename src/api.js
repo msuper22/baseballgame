@@ -54,3 +54,8 @@ export function isCaptain() {
   const user = getUser();
   return !!user?.is_captain || user?.role === 'admin';
 }
+
+export function isSpectator() {
+  const user = getUser();
+  return user?.role === 'spectator';
+}

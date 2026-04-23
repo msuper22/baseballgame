@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import { Env } from '../types';
 import { authRequired, adminRequired } from '../middleware/auth';
 import { generateRoundRobin } from '../services/scheduling';
+import { clearSeriesBasesForGame, ensureInitialHalfInning } from '../services/game-engine';
 import { logAudit } from '../services/audit';
+import { centralDate, centralTimeHM, centralStamp } from '../services/tz';
 
 export const tournamentRoutes = new Hono<{ Bindings: Env }>();
 
@@ -67,7 +69,7 @@ tournamentRoutes.get('/:id', authRequired, async (c) => {
 // Create tournament (admin)
 tournamentRoutes.post('/', authRequired, adminRequired, async (c) => {
   const user = c.get('user');
-  const { name, series_id, start_date, end_date, team_ids } = await c.req.json();
+  const { name, series_id, start_date, end_date, team_ids, innings_per_game } = await c.req.json();
 
   if (!name || !series_id || !start_date || !end_date) {
     return c.json({ error: 'name, series_id, start_date, end_date required' }, 400);
@@ -77,10 +79,12 @@ tournamentRoutes.post('/', authRequired, adminRequired, async (c) => {
   const series = await c.env.DB.prepare('SELECT id FROM series WHERE id = ?').bind(series_id).first();
   if (!series) return c.json({ error: 'Series not found' }, 404);
 
+  const innings = innings_per_game || 9;
+
   const result = await c.env.DB.prepare(
-    `INSERT INTO tournaments (name, series_id, format, status, start_date, end_date, created_by)
-     VALUES (?, ?, 'round_robin', 'draft', ?, ?, ?)`
-  ).bind(name, series_id, start_date, end_date, user.sub).run();
+    `INSERT INTO tournaments (name, series_id, format, status, start_date, end_date, created_by, innings_per_game)
+     VALUES (?, ?, 'round_robin', 'draft', ?, ?, ?, ?)`
+  ).bind(name, series_id, start_date, end_date, user.sub, innings).run();
 
   const tournamentId = result.meta.last_row_id as number;
 
@@ -102,7 +106,7 @@ tournamentRoutes.post('/', authRequired, adminRequired, async (c) => {
 tournamentRoutes.post('/:id/generate-schedule', authRequired, adminRequired, async (c) => {
   const id = parseInt(c.req.param('id') as string);
   const user = c.get('user');
-  const { team_ids, days_between_rounds, default_time } = await c.req.json();
+  const { team_ids, days_between_rounds, default_time, innings_per_game, exclude_dates } = await c.req.json();
 
   if (!Array.isArray(team_ids) || team_ids.length < 2) {
     return c.json({ error: 'At least 2 team_ids required' }, 400);
@@ -117,27 +121,37 @@ tournamentRoutes.post('/:id/generate-schedule', authRequired, adminRequired, asy
     return c.json({ error: 'Can only generate schedule for draft tournaments' }, 400);
   }
 
+  // Update innings_per_game on tournament if provided
+  const innings = innings_per_game || tournament.innings_per_game || 9;
+  if (innings_per_game) {
+    await c.env.DB.prepare('UPDATE tournaments SET innings_per_game = ? WHERE id = ?').bind(innings, id).run();
+  }
+
   // Delete any existing games for this tournament
   await c.env.DB.prepare('DELETE FROM game_base_state WHERE game_id IN (SELECT id FROM games WHERE tournament_id = ?)').bind(id).run();
   await c.env.DB.prepare('DELETE FROM games WHERE tournament_id = ?').bind(id).run();
   await c.env.DB.prepare('DELETE FROM tournament_standings WHERE tournament_id = ?').bind(id).run();
 
-  // Generate the schedule
+  // Generate the schedule. exclude_dates: array of 'YYYY-MM-DD' strings the
+  // scheduler must not assign rounds to (off-days, holidays, etc.).
+  const excluded = Array.isArray(exclude_dates) ? exclude_dates.filter(d => typeof d === 'string') : [];
   const schedule = generateRoundRobin(
     team_ids,
     tournament.start_date,
-    days_between_rounds || 1
+    days_between_rounds || 1,
+    excluded
   );
 
-  // Insert games and base states
+  // Insert games and base states — all games created as 'scheduled'.
+  // Past-date games only promote to 'active' when the tournament is activated.
   const gameIds: number[] = [];
   for (const game of schedule) {
     const gameResult = await c.env.DB.prepare(
-      `INSERT INTO games (tournament_id, series_id, home_team_id, away_team_id, scheduled_date, scheduled_time, status, round, game_number)
-       VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)`
+      `INSERT INTO games (tournament_id, series_id, home_team_id, away_team_id, scheduled_date, scheduled_time, status, total_innings, round, game_number)
+       VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?)`
     ).bind(
       id, tournament.series_id, game.homeTeamId, game.awayTeamId,
-      game.scheduledDate, default_time || null, game.round, game.gameNumber
+      game.scheduledDate, default_time || null, innings, game.round, game.gameNumber
     ).run();
 
     const gameId = gameResult.meta.last_row_id as number;
@@ -145,22 +159,22 @@ tournamentRoutes.post('/:id/generate-schedule', authRequired, adminRequired, asy
 
     // Create base state rows for both teams
     await c.env.DB.prepare(
-      'INSERT INTO game_base_state (game_id, team_id) VALUES (?, ?)'
+      'INSERT OR REPLACE INTO game_base_state (game_id, team_id) VALUES (?, ?)'
     ).bind(gameId, game.homeTeamId).run();
     await c.env.DB.prepare(
-      'INSERT INTO game_base_state (game_id, team_id) VALUES (?, ?)'
+      'INSERT OR REPLACE INTO game_base_state (game_id, team_id) VALUES (?, ?)'
     ).bind(gameId, game.awayTeamId).run();
   }
 
   // Initialize standings for all teams
   for (const teamId of team_ids) {
     await c.env.DB.prepare(
-      'INSERT INTO tournament_standings (tournament_id, team_id) VALUES (?, ?)'
+      'INSERT OR REPLACE INTO tournament_standings (tournament_id, team_id) VALUES (?, ?)'
     ).bind(id, teamId).run();
   }
 
   await logAudit(c.env.DB, user.sub, 'generate_schedule', 'tournament', id,
-    `Generated ${schedule.length} games for ${team_ids.length} teams`);
+    `Generated ${schedule.length} games for ${team_ids.length} teams, ${innings} innings each`);
 
   return c.json({ games_created: schedule.length, schedule });
 });
@@ -184,6 +198,32 @@ tournamentRoutes.put('/:id', authRequired, adminRequired, async (c) => {
   await c.env.DB.prepare(
     `UPDATE tournaments SET ${updates.join(', ')} WHERE id = ?`
   ).bind(...values).run();
+
+  // If activating the tournament, promote any past-date scheduled games to 'active'.
+  // Compare scheduled_date/time against Central-time strings, NOT UTC-parsed Date.
+  if (body.status === 'active') {
+    const todayC = centralDate();
+    const timeC = centralTimeHM();
+    const nowStr = centralStamp();
+    const pending = await c.env.DB.prepare(
+      `SELECT id, home_team_id, away_team_id, scheduled_date, scheduled_time, series_id FROM games
+       WHERE tournament_id = ? AND status = 'scheduled'`
+    ).bind(id).all();
+
+    for (const game of pending.results as any[]) {
+      const isPastOrNow =
+        game.scheduled_date < todayC ||
+        (game.scheduled_date === todayC && (!game.scheduled_time || game.scheduled_time <= timeC));
+      if (!isPastOrNow) continue;
+
+      await c.env.DB.prepare(
+        `UPDATE games SET status = 'active', started_at = ? WHERE id = ?`
+      ).bind(nowStr, game.id).run();
+
+      await ensureInitialHalfInning(c.env.DB, game.id, game.home_team_id, game.away_team_id);
+      await clearSeriesBasesForGame(c.env.DB, game.series_id, game.home_team_id, game.away_team_id);
+    }
+  }
 
   // If completing the tournament, complete all its remaining games
   if (body.status === 'completed') {

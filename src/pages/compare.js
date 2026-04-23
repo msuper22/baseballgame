@@ -60,7 +60,6 @@ export async function comparePage(app) {
         { label: 'Runs', key: 'total_runs' },
         { label: 'Total Bases', key: 'total_bases' },
         { label: 'At Bats', key: 'total_at_bats' },
-        { label: 'RBI', key: 'total_rbi' },
         { label: 'Singles', key: 'singles' },
         { label: 'Doubles', key: 'doubles' },
         { label: 'Triples', key: 'triples' },

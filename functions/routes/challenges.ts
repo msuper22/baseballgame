@@ -63,11 +63,13 @@ challengeRoutes.get('/pending-count', authRequired, async (c) => {
 // Create a challenge (captain or admin)
 challengeRoutes.post('/', authRequired, captainRequired, async (c) => {
   const user = c.get('user');
-  const { challenged_team_id, proposed_date, proposed_time, message } = await c.req.json();
+  const { challenged_team_id, proposed_date, proposed_time, message, innings } = await c.req.json();
 
   if (!challenged_team_id || !proposed_date) {
     return c.json({ error: 'challenged_team_id and proposed_date required' }, 400);
   }
+
+  const inningsVal = Number.isInteger(innings) && innings >= 1 && innings <= 18 ? innings : 9;
 
   if (!user.team_id) {
     return c.json({ error: 'You must be on a team to send challenges' }, 400);
@@ -111,11 +113,11 @@ challengeRoutes.post('/', authRequired, captainRequired, async (c) => {
 
   const result = await c.env.DB.prepare(
     `INSERT INTO challenges (series_id, challenger_team_id, challenged_team_id, challenger_captain_id,
-     proposed_date, proposed_time, message, status, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
+     proposed_date, proposed_time, message, innings, status, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
   ).bind(
     series.id, user.team_id, challenged_team_id, user.sub,
-    proposed_date, proposed_time || null, message || null, expiresAt
+    proposed_date, proposed_time || null, message || null, inningsVal, expiresAt
   ).run();
 
   await logAudit(c.env.DB, user.sub, 'create_challenge', 'challenge', result.meta.last_row_id as number,
@@ -167,13 +169,13 @@ challengeRoutes.put('/:id/accept', authRequired, captainRequired, async (c) => {
     return c.json({ error: 'A scheduling conflict now exists for this date' }, 400);
   }
 
-  // Create the game
+  // Create the game with the challenger's requested innings count
   const gameResult = await c.env.DB.prepare(
-    `INSERT INTO games (series_id, home_team_id, away_team_id, scheduled_date, scheduled_time, status)
-     VALUES (?, ?, ?, ?, ?, 'scheduled')`
+    `INSERT INTO games (series_id, home_team_id, away_team_id, scheduled_date, scheduled_time, status, total_innings)
+     VALUES (?, ?, ?, ?, ?, 'scheduled', ?)`
   ).bind(
     challenge.series_id, challenge.challenger_team_id, challenge.challenged_team_id,
-    challenge.proposed_date, challenge.proposed_time
+    challenge.proposed_date, challenge.proposed_time, challenge.innings || 9
   ).run();
 
   const gameId = gameResult.meta.last_row_id as number;

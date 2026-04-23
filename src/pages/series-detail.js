@@ -3,6 +3,7 @@ import { navigate } from '../router.js';
 import { renderDiamond } from '../components/diamond.js';
 import { renderStatsTable } from '../components/stats-table.js';
 import { showToast } from '../components/toast.js';
+import { fmtAvg, fmtSlg } from '../lib/format.js';
 
 export async function seriesDetailPage(app, params) {
   if (!isLoggedIn()) { navigate('/login'); return; }
@@ -104,15 +105,6 @@ async function loadAwards(seriesId) {
           <span class="award-value">${a.winning_team.value} Runs</span>
         </div>`);
     }
-    if (a.mvp_rbi && a.mvp_rbi.value > 0) {
-      awardCards.push(`
-        <div class="award-card">
-          <span class="award-icon">&#11088;</span>
-          <span class="award-title">RBI Leader</span>
-          <a href="#/player/${a.mvp_rbi.id}" class="award-winner table-link">${a.mvp_rbi.display_name}</a>
-          <span class="award-value">${a.mvp_rbi.value} RBI</span>
-        </div>`);
-    }
     if (a.mvp_bases && a.mvp_bases.value > 0) {
       awardCards.push(`
         <div class="award-card">
@@ -181,7 +173,7 @@ async function loadSeriesTab(tabName, seriesId) {
       content.innerHTML = '<div id="series-team-table"></div>';
       const teams = res.teams.map(t => ({
         ...t,
-        slg: t.total_at_bats > 0 ? (t.total_bases / t.total_at_bats).toFixed(3) : '.000',
+        slg: fmtSlg(t.total_at_bats > 0 ? t.total_bases / t.total_at_bats : 0),
       }));
       renderStatsTable(
         document.getElementById('series-team-table'),
@@ -204,8 +196,8 @@ async function loadSeriesTab(tabName, seriesId) {
       content.innerHTML = '<div id="series-player-table"></div>';
       const players = res.players.map(p => ({
         ...p,
-        avg: p.total_at_bats > 0 ? ((p.singles + p.doubles + p.triples + p.home_runs) / p.total_at_bats).toFixed(3) : '.000',
-        slg: p.total_at_bats > 0 ? (p.total_bases / p.total_at_bats).toFixed(3) : '.000',
+        avg: fmtAvg(p.total_at_bats > 0 ? (p.singles + p.doubles + p.triples + p.home_runs) / p.total_at_bats : 0),
+        slg: fmtSlg(p.total_at_bats > 0 ? p.total_bases / p.total_at_bats : 0),
       }));
       renderStatsTable(
         document.getElementById('series-player-table'),
@@ -215,7 +207,6 @@ async function loadSeriesTab(tabName, seriesId) {
           { key: 'team_name', label: 'Team', sortable: true },
           { key: 'total_at_bats', label: 'AB', sortable: true },
           { key: 'total_bases', label: 'TB', sortable: true },
-          { key: 'runs_batted_in', label: 'RBI', sortable: true },
           { key: 'singles', label: '1B', sortable: true },
           { key: 'doubles', label: '2B', sortable: true },
           { key: 'triples', label: '3B', sortable: true },

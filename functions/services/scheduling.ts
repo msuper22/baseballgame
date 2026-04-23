@@ -22,7 +22,8 @@ export interface ScheduledGame {
 export function generateRoundRobin(
   teamIds: number[],
   startDate: string,
-  daysBetweenRounds: number = 1
+  daysBetweenRounds: number = 1,
+  excludeDates: string[] = []
 ): ScheduledGame[] {
   if (teamIds.length < 2) return [];
 
@@ -37,32 +38,39 @@ export function generateRoundRobin(
   const gamesPerRound = n / 2;
   const games: ScheduledGame[] = [];
 
-  // Circle method: fix first team, rotate the rest
+  // Circle method: fix first team, rotate the rest. Pair position i with n-1-i.
   const fixed = teams[0];
   const rotating = teams.slice(1);
+  const excluded = new Set(excludeDates);
+
+  // Walk calendar day-by-day: step forward by daysBetweenRounds, skip any
+  // excluded dates, and assign the next unassigned round to each eligible day.
+  const roundDates: string[] = [];
+  let cursor = startDate;
+  while (roundDates.length < totalRounds) {
+    if (!excluded.has(cursor)) roundDates.push(cursor);
+    cursor = addDays(cursor, daysBetweenRounds);
+  }
 
   for (let round = 0; round < totalRounds; round++) {
-    const roundDate = addDays(startDate, round * daysBetweenRounds);
+    const roundDate = roundDates[round];
+    const positions = [fixed, ...rotating];
     let gameNumber = 1;
 
     for (let match = 0; match < gamesPerRound; match++) {
-      // Circle positions: position 0 is fixed; positions 1..n-1 are the rotating array.
-      // Each round pairs position m with position n-1-m.
       let home: number;
       let away: number;
 
       if (match === 0) {
-        home = fixed;                         // position 0
-        away = rotating[rotating.length - 1]; // position n-1
+        home = fixed;
+        away = rotating[rotating.length - 1];
       } else {
-        home = rotating[match - 1];           // position match
-        away = rotating[rotating.length - 1 - match]; // position n-1-match
+        home = rotating[match - 1];
+        away = rotating[rotating.length - 1 - match];
       }
 
-      // Skip BYE games
       if (home === -1 || away === -1) continue;
 
-      // Alternate home/away across rounds for fairness on the fixed-team matchup
       if (round % 2 === 1 && match === 0) {
         [home, away] = [away, home];
       }
@@ -77,7 +85,7 @@ export function generateRoundRobin(
       gameNumber++;
     }
 
-    // Rotate: move last element to the front of the rotating array
+    // Rotate: move last element to the front
     rotating.unshift(rotating.pop()!);
   }
 

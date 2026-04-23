@@ -46,12 +46,12 @@ export function showGameOver(stats) {
           <span class="game-over-name">${stats.homeName}</span>
         </div>
       </div>
-      ${!isTie ? `<div class="game-over-winner">${winnerName} Wins!</div>` : '<div class="game-over-winner">Tied! Golden Score!</div>'}
+      ${!isTie ? `<div class="game-over-winner">${winnerName} Wins!</div>` : '<div class="game-over-winner">Tied! Extra Innings!</div>'}
       ${stats.mvp ? `
         <div class="game-over-mvp">
           <span class="mvp-label">Game MVP</span>
           <span class="mvp-name">${stats.mvp.player_name}</span>
-          <span class="mvp-stats">${stats.mvp.total_bases} TB &middot; ${stats.mvp.runs_batted_in} RBI</span>
+          <span class="mvp-stats">${stats.mvp.total_bases} TB</span>
         </div>
       ` : ''}
       ${stats.topPlays?.length ? `

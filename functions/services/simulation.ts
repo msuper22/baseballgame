@@ -55,6 +55,7 @@ export interface DefenseResult {
   totalStrikes: number;
   totalOuts: number;
   inningEnded: boolean;
+  sidesSwap: boolean;
 }
 
 export function simulateDefenseEvent(
@@ -62,36 +63,33 @@ export function simulateDefenseEvent(
   currentOuts: number,
   hitType: HitType
 ): DefenseResult {
-  const bases = HIT_BASES[hitType];
   let strikesAdded = 0;
   let outsAdded = 0;
+  let sidesSwap = false;
 
   if (hitType === 'single') {
-    // Strikeout: 1 strike toward the count
     strikesAdded = 1;
   } else if (hitType === 'double') {
-    // Caught out: direct out
     outsAdded = 1;
   } else if (hitType === 'triple') {
-    // Double play: 2 outs
     outsAdded = 2;
   } else if (hitType === 'home_run') {
-    // Triple play: 3 outs (inning over)
-    outsAdded = 3;
+    // Defensive HR: the fielding team immediately goes on offense.
+    // Current half-inning ends; no outs counted here.
+    sidesSwap = true;
   }
 
   let totalStrikes = currentStrikes + strikesAdded;
   let totalOuts = currentOuts + outsAdded;
 
-  // 2 strikes = strikeout = 1 out
   if (totalStrikes >= 2) {
     totalOuts += 1;
     totalStrikes = 0;
   }
 
-  const inningEnded = totalOuts >= 3;
+  const inningEnded = totalOuts >= 3 || sidesSwap;
 
-  return { strikesAdded, outsAdded, totalStrikes, totalOuts, inningEnded };
+  return { strikesAdded, outsAdded, totalStrikes, totalOuts, inningEnded, sidesSwap };
 }
 
 /**

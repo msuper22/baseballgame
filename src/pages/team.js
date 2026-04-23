@@ -3,6 +3,7 @@ import { navigate } from '../router.js';
 import { renderDiamond } from '../components/diamond.js';
 import { renderStatsTable } from '../components/stats-table.js';
 import { showToast } from '../components/toast.js';
+import { fmtAvg, fmtSlg } from '../lib/format.js';
 
 export async function teamPage(app, params) {
   if (!isLoggedIn()) { navigate('/login'); return; }
@@ -29,8 +30,8 @@ export async function teamPage(app, params) {
     rosterDiv.innerHTML = '<h2>Player Stats</h2><div id="roster-table"></div>';
     const rosterPlayers = playersRes.players.map(p => ({
       ...p,
-      avg: p.total_at_bats > 0 ? ((p.singles + p.doubles + p.triples + p.home_runs) / p.total_at_bats).toFixed(3) : '.000',
-      slg: p.total_at_bats > 0 ? (p.total_bases / p.total_at_bats).toFixed(3) : '.000',
+      avg: fmtAvg(p.total_at_bats > 0 ? (p.singles + p.doubles + p.triples + p.home_runs) / p.total_at_bats : 0),
+      slg: fmtSlg(p.total_at_bats > 0 ? p.total_bases / p.total_at_bats : 0),
     }));
     renderStatsTable(
       document.getElementById('roster-table'),
@@ -39,7 +40,6 @@ export async function teamPage(app, params) {
         { key: 'display_name', label: 'Player', sortable: true, link: (row) => `#/player/${row.id}` },
         { key: 'total_at_bats', label: 'AB', sortable: true },
         { key: 'total_bases', label: 'TB', sortable: true },
-        { key: 'runs_batted_in', label: 'RBI', sortable: true },
         { key: 'singles', label: '1B', sortable: true },
         { key: 'doubles', label: '2B', sortable: true },
         { key: 'triples', label: '3B', sortable: true },

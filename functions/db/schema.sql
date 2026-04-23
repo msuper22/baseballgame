@@ -26,22 +26,28 @@ CREATE TABLE IF NOT EXISTS series (
   start_date TEXT NOT NULL,
   end_date   TEXT NOT NULL,
   is_active  INTEGER NOT NULL DEFAULT 1,
+  is_locked  INTEGER NOT NULL DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
 -- Every production event entered
 CREATE TABLE IF NOT EXISTS at_bats (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  series_id   INTEGER NOT NULL REFERENCES series(id),
-  player_id   INTEGER NOT NULL REFERENCES players(id),
-  team_id     INTEGER NOT NULL REFERENCES teams(id),
-  hit_type    TEXT NOT NULL,
-  bases       INTEGER NOT NULL,
-  runs_scored INTEGER NOT NULL DEFAULT 0,
-  description TEXT,
-  entered_by  INTEGER REFERENCES players(id),
-  game_id     INTEGER REFERENCES games(id),
-  created_at  TEXT DEFAULT (datetime('now'))
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  series_id      INTEGER NOT NULL REFERENCES series(id),
+  player_id      INTEGER NOT NULL REFERENCES players(id),
+  team_id        INTEGER NOT NULL REFERENCES teams(id),
+  hit_type       TEXT NOT NULL,
+  bases          INTEGER NOT NULL,
+  runs_scored    INTEGER NOT NULL DEFAULT 0,
+  description    TEXT,
+  entered_by     INTEGER REFERENCES players(id),
+  game_id        INTEGER REFERENCES games(id),
+  half_inning_id INTEGER REFERENCES half_innings(id),
+  event_side     TEXT,
+  credit_time    TEXT,
+  strikes_caused INTEGER DEFAULT 0,
+  outs_caused    INTEGER DEFAULT 0,
+  created_at     TEXT DEFAULT (datetime('now'))
 );
 
 -- Current base state per team per series
@@ -84,6 +90,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
   start_date  TEXT NOT NULL,
   end_date    TEXT NOT NULL,
   created_by  INTEGER NOT NULL REFERENCES players(id),
+  innings_per_game INTEGER NOT NULL DEFAULT 9,
   created_at  TEXT DEFAULT (datetime('now'))
 );
 
@@ -94,9 +101,17 @@ CREATE TABLE IF NOT EXISTS games (
   series_id       INTEGER NOT NULL REFERENCES series(id),
   home_team_id    INTEGER NOT NULL REFERENCES teams(id),
   away_team_id    INTEGER NOT NULL REFERENCES teams(id),
-  scheduled_date  TEXT NOT NULL,
+  total_innings   INTEGER NOT NULL DEFAULT 9,
+  scheduled_date  TEXT,
   scheduled_time  TEXT,
+  scheduled_at    TEXT,
+  started_at      TEXT,
+  completed_at    TEXT,
+  current_inning  INTEGER NOT NULL DEFAULT 1,
+  current_half    TEXT NOT NULL DEFAULT 'top',
   status          TEXT NOT NULL DEFAULT 'scheduled',
+  home_score      INTEGER NOT NULL DEFAULT 0,
+  away_score      INTEGER NOT NULL DEFAULT 0,
   home_runs       INTEGER NOT NULL DEFAULT 0,
   away_runs       INTEGER NOT NULL DEFAULT 0,
   home_bases      INTEGER NOT NULL DEFAULT 0,
@@ -138,6 +153,7 @@ CREATE TABLE IF NOT EXISTS challenges (
   responded_by          INTEGER REFERENCES players(id),
   responded_at          TEXT,
   game_id               INTEGER REFERENCES games(id),
+  innings               INTEGER NOT NULL DEFAULT 9,
   expires_at            TEXT NOT NULL,
   created_at            TEXT DEFAULT (datetime('now'))
 );

@@ -75,7 +75,7 @@ export interface JwtPayload {
   exp: number;
 }
 
-export type GameStatus = 'scheduled' | 'active' | 'completed' | 'cancelled' | 'golden_score';
+export type GameStatus = 'scheduled' | 'active' | 'completed' | 'cancelled' | 'extra_innings';
 export type EventSide = 'offense' | 'defense';
 export type InningHalf = 'top' | 'bottom';
 export type ChallengeStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';

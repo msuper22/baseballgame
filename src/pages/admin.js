@@ -2,6 +2,7 @@ import { api, isAdmin, isLoggedIn } from '../api.js';
 import { navigate } from '../router.js';
 import { showToast } from '../components/toast.js';
 import { renderEventForm } from '../components/event-form.js';
+import { formatHit as sideFormatHit } from '../components/hit-label.js';
 
 export async function adminPage(app) {
   if (!isLoggedIn()) { navigate('/login'); return; }
@@ -18,6 +19,7 @@ export async function adminPage(app) {
         <button class="tab" data-tab="players">Players</button>
         <button class="tab" data-tab="series">Series</button>
         <button class="tab" data-tab="tournaments">Tournaments</button>
+        <button class="tab" data-tab="games">Games</button>
         <button class="tab" data-tab="events">Events</button>
         <button class="tab" data-tab="audit">Audit Log</button>
         <button class="tab" data-tab="log-event">Log Event</button>
@@ -40,6 +42,7 @@ export async function adminPage(app) {
     else if (tabName === 'players') await loadPlayersTab(content);
     else if (tabName === 'series') await loadSeriesTab(content);
     else if (tabName === 'tournaments') await loadTournamentsTab(content);
+    else if (tabName === 'games') await loadGamesTab(content);
     else if (tabName === 'events') await loadEventsTab(content);
     else if (tabName === 'audit') await loadAuditTab(content);
     else if (tabName === 'log-event') await renderEventForm(content, { onSuccess: () => showToast('Event logged!', 'success') });
@@ -65,7 +68,7 @@ async function loadTeamsTab(content) {
               <div class="admin-item-info">
                 <strong>${t.name}</strong>
                 <span class="badge">Code: ${t.invite_code}</span>
-                <span class="badge">${t.player_count || 0} players</span>
+                <span class="badge">${t.player_count || 0} ${t.player_count === 1 ? 'player' : 'players'}</span>
               </div>
               <div class="admin-item-actions">
                 <button class="btn btn-sm btn-danger delete-team" data-id="${t.id}">Delete</button>
@@ -106,17 +109,27 @@ async function loadTeamsTab(content) {
   }
 }
 
+let playerFilter = 'active'; // persist across reloads of this tab
+let playerView = 'list'; // 'list' or 'rosters'
+
 async function loadPlayersTab(content) {
   content.innerHTML = '<div class="loading">Loading...</div>';
   try {
     const [playersRes, teamsRes] = await Promise.all([api('/players'), api('/teams')]);
+    const allPlayers = playersRes.players || [];
+    const activeCount = allPlayers.filter(p => p.is_active).length;
+    const inactiveCount = allPlayers.length - activeCount;
+
+    const filtered = playerFilter === 'active' ? allPlayers.filter(p => p.is_active)
+                   : playerFilter === 'inactive' ? allPlayers.filter(p => !p.is_active)
+                   : allPlayers;
 
     content.innerHTML = `
       <div class="admin-section">
         <h2>Players</h2>
         <form id="add-player-form" class="inline-form">
           <input type="text" id="player-display" class="form-input" placeholder="Display Name" required>
-          <input type="text" id="player-username" class="form-input" placeholder="Username" required>
+          <input type="text" id="player-username" class="form-input" placeholder="firstname.lastname" required>
           <input type="password" id="player-password" class="form-input" placeholder="Password" required>
           <select id="player-team" class="form-input">
             <option value="">No Team</option>
@@ -140,25 +153,68 @@ async function loadPlayersTab(content) {
           <div id="bulk-result"></div>
         </div>
 
-        <div class="admin-list">
-          ${playersRes.players.map(p => `
-            <div class="admin-item ${!p.is_active ? 'inactive' : ''}">
-              <div class="admin-item-info">
-                <strong>${p.display_name}</strong>
-                <span class="badge">${p.username}</span>
-                <span class="badge">${p.team_name || 'No team'}</span>
-                <span class="badge badge-${p.role}">${p.role}</span>
-                ${p.is_captain ? '<span class="badge badge-active">Captain</span>' : ''}
-                ${!p.is_active ? '<span class="badge badge-inactive">Inactive</span>' : ''}
-              </div>
-              <div class="admin-item-actions">
-                ${p.is_active ? `<button class="btn btn-sm toggle-captain" data-id="${p.id}" data-captain="${p.is_captain || 0}">${p.is_captain ? 'Remove Captain' : 'Make Captain'}</button>` : ''}
-                ${p.is_active ? `<button class="btn btn-sm btn-danger deactivate-player" data-id="${p.id}">Deactivate</button>` : ''}
-              </div>
-            </div>
-          `).join('')}
+        <div class="list-filter-bar">
+          <div class="filter-segment" role="tablist">
+            <button class="filter-btn ${playerFilter === 'active' ? 'active' : ''}" data-filter="active">Active <span class="filter-count">${activeCount}</span></button>
+            <button class="filter-btn ${playerFilter === 'inactive' ? 'active' : ''}" data-filter="inactive">Inactive <span class="filter-count">${inactiveCount}</span></button>
+            <button class="filter-btn ${playerFilter === 'all' ? 'active' : ''}" data-filter="all">All <span class="filter-count">${allPlayers.length}</span></button>
+          </div>
+          <div class="filter-segment" role="tablist" style="margin-left: 0.5rem">
+            <button class="view-btn ${playerView === 'list' ? 'active' : ''}" data-view="list">List</button>
+            <button class="view-btn ${playerView === 'rosters' ? 'active' : ''}" data-view="rosters">By Team</button>
+          </div>
         </div>
+
+        ${playerView === 'rosters'
+          ? renderRostersView(filtered, teamsRes.teams)
+          : renderPlayerListView(filtered, teamsRes.teams)}
       </div>`;
+
+    content.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        playerFilter = btn.dataset.filter;
+        loadPlayersTab(content);
+      });
+    });
+
+    content.querySelectorAll('.view-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        playerView = btn.dataset.view;
+        loadPlayersTab(content);
+      });
+    });
+
+    content.querySelectorAll('.change-team').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const playerId = sel.dataset.id;
+        const newTeamId = sel.value === '' ? null : parseInt(sel.value);
+        const originalTeamId = sel.dataset.original === 'null' ? null : parseInt(sel.dataset.original);
+        if (newTeamId === originalTeamId) return;
+        try {
+          await api(`/players/${playerId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ team_id: newTeamId }),
+          });
+          showToast('Team updated', 'success');
+          loadPlayersTab(content);
+        } catch (e) {
+          showToast(e.message, 'error');
+          sel.value = sel.dataset.original;
+        }
+      });
+    });
+
+    content.querySelectorAll('.reactivate-player').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try {
+          await api(`/players/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ is_active: 1 }) });
+          showToast('Player reactivated', 'success');
+          loadPlayersTab(content);
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      });
+    });
 
     document.getElementById('add-player-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -236,6 +292,82 @@ async function loadPlayersTab(content) {
   } catch (e) {
     content.innerHTML = `<p class="error">${e.message}</p>`;
   }
+}
+
+function renderTeamSelect(player, teams) {
+  const currentTeamId = player.team_id == null ? '' : String(player.team_id);
+  const originalAttr = player.team_id == null ? 'null' : String(player.team_id);
+  return `
+    <select class="form-input form-input-sm change-team" data-id="${player.id}" data-original="${originalAttr}" title="Change team">
+      <option value="" ${currentTeamId === '' ? 'selected' : ''}>No Team</option>
+      ${teams.map(t => `<option value="${t.id}" ${currentTeamId === String(t.id) ? 'selected' : ''}>${t.name}</option>`).join('')}
+    </select>`;
+}
+
+function renderPlayerListView(players, teams) {
+  if (players.length === 0) return '<p class="empty-state">No players match this filter.</p>';
+  return `
+    <div class="admin-list">
+      ${players.map(p => `
+        <div class="admin-item ${!p.is_active ? 'inactive' : ''}">
+          <div class="admin-item-info">
+            <strong>${p.display_name}</strong>
+            <span class="badge">${p.username}</span>
+            <span class="badge badge-${p.role}">${p.role}</span>
+            ${p.is_captain ? '<span class="badge badge-active">Captain</span>' : ''}
+            ${!p.is_active ? '<span class="badge badge-inactive">Inactive</span>' : ''}
+          </div>
+          <div class="admin-item-actions">
+            ${renderTeamSelect(p, teams)}
+            ${p.is_active ? `<button class="btn btn-sm toggle-captain" data-id="${p.id}" data-captain="${p.is_captain || 0}">${p.is_captain ? 'Remove Captain' : 'Make Captain'}</button>` : ''}
+            ${p.is_active
+              ? `<button class="btn btn-sm btn-danger deactivate-player" data-id="${p.id}">Deactivate</button>`
+              : `<button class="btn btn-sm btn-primary reactivate-player" data-id="${p.id}">Reactivate</button>`}
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+function renderRostersView(players, teams) {
+  if (players.length === 0) return '<p class="empty-state">No players match this filter.</p>';
+  // Group players by team_id
+  const grouped = new Map();
+  for (const t of teams) grouped.set(t.id, { team: t, players: [] });
+  grouped.set(null, { team: { id: null, name: 'No Team' }, players: [] });
+  for (const p of players) {
+    const key = p.team_id == null ? null : p.team_id;
+    if (!grouped.has(key)) grouped.set(key, { team: { id: key, name: p.team_name || 'Unknown' }, players: [] });
+    grouped.get(key).players.push(p);
+  }
+
+  return Array.from(grouped.values())
+    .filter(g => g.players.length > 0)
+    .map(({ team, players }) => `
+      <div class="roster-section">
+        <h3 class="roster-team-name">${team.name} <span class="roster-count">${players.length} ${players.length === 1 ? 'player' : 'players'}</span></h3>
+        <div class="admin-list">
+          ${players.map(p => `
+            <div class="admin-item ${!p.is_active ? 'inactive' : ''}">
+              <div class="admin-item-info">
+                <strong>${p.display_name}</strong>
+                <span class="badge">${p.username}</span>
+                <span class="badge badge-${p.role}">${p.role}</span>
+                ${p.is_captain ? '<span class="badge badge-active">Captain</span>' : ''}
+                ${!p.is_active ? '<span class="badge badge-inactive">Inactive</span>' : ''}
+              </div>
+              <div class="admin-item-actions">
+                ${renderTeamSelect(p, teams)}
+                ${p.is_active ? `<button class="btn btn-sm toggle-captain" data-id="${p.id}" data-captain="${p.is_captain || 0}">${p.is_captain ? 'Remove Captain' : 'Make Captain'}</button>` : ''}
+                ${p.is_active
+                  ? `<button class="btn btn-sm btn-danger deactivate-player" data-id="${p.id}">Deactivate</button>`
+                  : `<button class="btn btn-sm btn-primary reactivate-player" data-id="${p.id}">Reactivate</button>`}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
 }
 
 async function loadSeriesTab(content) {
@@ -359,6 +491,10 @@ async function loadTournamentsTab(content) {
           </select>
           <input type="date" id="tournament-start" class="form-input" required>
           <input type="date" id="tournament-end" class="form-input" required>
+          <div class="form-group" style="margin-bottom:0">
+            <label style="font-size:0.6rem">Innings</label>
+            <input type="number" id="tournament-innings" class="form-input" value="9" min="1" max="18" style="width:90px">
+          </div>
           <button type="submit" class="btn btn-primary">Create Tournament</button>
         </form>
 
@@ -381,7 +517,17 @@ async function loadTournamentsTab(content) {
               <label style="font-size:0.6rem">Default Time</label>
               <input type="time" id="default-time" class="form-input" style="width:120px">
             </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:0.6rem">Innings Per Game</label>
+              <input type="number" id="schedule-innings" class="form-input" value="9" min="1" max="18" style="width:80px">
+            </div>
             <button id="generate-schedule-btn" class="btn btn-primary">Generate Schedule</button>
+          </div>
+          <div class="form-group" style="margin-top:0.75rem">
+            <label style="font-size:0.6rem">Off-Days (skip these dates) <span style="color:var(--text-muted)">— type YYYY-MM-DD, press Enter</span></label>
+            <div id="offday-chips" class="offday-chips"></div>
+            <input type="date" id="offday-input" class="form-input" style="width:200px;margin-top:0.5rem">
+            <button type="button" id="offday-add-btn" class="btn btn-sm" style="margin-left:0.5rem">Add off-day</button>
           </div>
           <div id="schedule-result"></div>
         </div>
@@ -420,6 +566,7 @@ async function loadTournamentsTab(content) {
             series_id: parseInt(document.getElementById('tournament-series').value),
             start_date: document.getElementById('tournament-start').value,
             end_date: document.getElementById('tournament-end').value,
+            innings_per_game: parseInt(document.getElementById('tournament-innings').value) || 9,
           }),
         });
         showToast('Tournament created! Now set up the schedule.', 'success');
@@ -431,6 +578,23 @@ async function loadTournamentsTab(content) {
 
     // Setup schedule button — show the generator
     let activeTournamentId = null;
+    const offDays = new Set();
+    const renderOffdayChips = () => {
+      const c = document.getElementById('offday-chips');
+      if (!c) return;
+      c.innerHTML = Array.from(offDays).sort().map(d =>
+        `<span class="offday-chip">${d} <button data-d="${d}" class="offday-remove">&times;</button></span>`
+      ).join('') || '<span class="empty-state" style="padding:0">No off-days</span>';
+      c.querySelectorAll('.offday-remove').forEach(btn =>
+        btn.addEventListener('click', () => { offDays.delete(btn.dataset.d); renderOffdayChips(); }));
+    };
+    renderOffdayChips();
+
+    document.getElementById('offday-add-btn')?.addEventListener('click', () => {
+      const v = document.getElementById('offday-input').value;
+      if (v) { offDays.add(v); renderOffdayChips(); }
+    });
+
     content.querySelectorAll('.setup-schedule').forEach(btn => {
       btn.addEventListener('click', () => {
         activeTournamentId = btn.dataset.id;
@@ -448,11 +612,18 @@ async function loadTournamentsTab(content) {
 
       const daysBetween = parseInt(document.getElementById('days-between').value) || 1;
       const defaultTime = document.getElementById('default-time').value || null;
+      const scheduleInnings = parseInt(document.getElementById('schedule-innings').value) || 9;
 
       try {
         const res = await api(`/tournaments/${activeTournamentId}/generate-schedule`, {
           method: 'POST',
-          body: JSON.stringify({ team_ids: teamIds, days_between_rounds: daysBetween, default_time: defaultTime }),
+          body: JSON.stringify({
+            team_ids: teamIds,
+            days_between_rounds: daysBetween,
+            default_time: defaultTime,
+            innings_per_game: scheduleInnings,
+            exclude_dates: Array.from(offDays),
+          }),
         });
         showToast(`Schedule generated: ${res.games_created} games!`, 'success');
         loadTournamentsTab(content);
@@ -500,6 +671,130 @@ async function loadTournamentsTab(content) {
   }
 }
 
+async function loadGamesTab(content) {
+  content.innerHTML = '<div class="loading">Loading...</div>';
+  try {
+    const [teamsRes, gamesRes, seriesRes] = await Promise.all([
+      api('/teams'), api('/games/schedule'), api('/series'),
+    ]);
+
+    const standaloneGames = (gamesRes.games || []).filter(g => !g.tournament_id);
+    const activeSeries = (seriesRes.series || []).filter(s => s.is_active);
+
+    content.innerHTML = `
+      <div class="admin-section">
+        <h2>Single Games</h2>
+        <p style="font-size:1rem;color:var(--text-muted);margin-bottom:0.75rem">
+          Standalone games are one-off matchups, separate from tournaments. They use the active series by default.
+        </p>
+        <form id="add-game-form" class="inline-form" style="flex-wrap:wrap">
+          <select id="game-home" class="form-input" required>
+            <option value="">Home team...</option>
+            ${teamsRes.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+          </select>
+          <span style="color:var(--text-muted)">vs</span>
+          <select id="game-away" class="form-input" required>
+            <option value="">Away team...</option>
+            ${teamsRes.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+          </select>
+          <input type="date" id="game-date" class="form-input" required>
+          <input type="time" id="game-time" class="form-input" style="width:110px">
+          <div class="form-group" style="margin-bottom:0">
+            <label style="font-size:0.6rem">Innings</label>
+            <input type="number" id="game-innings" class="form-input" value="9" min="1" max="18" style="width:80px">
+          </div>
+          <button type="submit" class="btn btn-primary">Create Game</button>
+        </form>
+
+        <h3 style="margin-top:1.5rem">Standalone Games (${standaloneGames.length})</h3>
+        ${activeSeries.length === 0
+          ? '<p class="warn" style="margin:0.5rem 0">No active series — create one first or games will fail to schedule events against.</p>'
+          : ''}
+        <div class="admin-list">
+          ${standaloneGames.length === 0 ? '<p class="empty-state">No standalone games yet.</p>' :
+            standaloneGames.map(g => {
+              const statusBadge = { scheduled: 'badge-mod', active: 'badge-active', completed: 'badge-inactive', cancelled: 'badge-inactive' }[g.status] || '';
+              return `
+                <div class="admin-item">
+                  <div class="admin-item-info">
+                    <strong><a href="#/game/${g.id}" class="table-link">${g.home_team_name} vs ${g.away_team_name}</a></strong>
+                    <span class="badge ${statusBadge}">${g.status}</span>
+                    ${g.scheduled_date ? `<span class="badge">${g.scheduled_date}${g.scheduled_time ? ' ' + g.scheduled_time : ''}</span>` : '<span class="badge">unscheduled</span>'}
+                    <span class="badge">${g.total_innings || 9} inn</span>
+                    ${g.status !== 'scheduled' ? `<span class="badge">${g.home_runs}-${g.away_runs}</span>` : ''}
+                  </div>
+                  <div class="admin-item-actions">
+                    ${g.status === 'scheduled' ? `<button class="btn btn-sm btn-primary activate-game" data-id="${g.id}">Start</button>` : ''}
+                    ${g.status === 'active' ? `<button class="btn btn-sm btn-danger complete-game" data-id="${g.id}">End</button>` : ''}
+                    <button class="btn btn-sm btn-danger delete-game" data-id="${g.id}">Delete</button>
+                  </div>
+                </div>`;
+            }).join('')}
+        </div>
+      </div>`;
+
+    document.getElementById('add-game-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const home = parseInt(document.getElementById('game-home').value);
+      const away = parseInt(document.getElementById('game-away').value);
+      if (!home || !away || home === away) {
+        showToast('Pick two different teams', 'error');
+        return;
+      }
+      try {
+        await api('/games', {
+          method: 'POST',
+          body: JSON.stringify({
+            home_team_id: home,
+            away_team_id: away,
+            scheduled_date: document.getElementById('game-date').value || null,
+            scheduled_time: document.getElementById('game-time').value || null,
+            total_innings: parseInt(document.getElementById('game-innings').value) || 9,
+          }),
+        });
+        showToast('Game created!', 'success');
+        loadGamesTab(content);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    });
+
+    content.querySelectorAll('.activate-game').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try {
+          await api(`/games/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ status: 'active' }) });
+          showToast('Game started', 'success');
+          loadGamesTab(content);
+        } catch (e) { showToast(e.message, 'error'); }
+      });
+    });
+
+    content.querySelectorAll('.complete-game').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('End this game? Winner will be determined by current score.')) return;
+        try {
+          await api(`/games/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ status: 'completed' }) });
+          showToast('Game completed', 'success');
+          loadGamesTab(content);
+        } catch (e) { showToast(e.message, 'error'); }
+      });
+    });
+
+    content.querySelectorAll('.delete-game').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this game and all its events?')) return;
+        try {
+          await api(`/games/${btn.dataset.id}`, { method: 'DELETE' });
+          showToast('Game deleted', 'success');
+          loadGamesTab(content);
+        } catch (e) { showToast(e.message, 'error'); }
+      });
+    });
+  } catch (e) {
+    content.innerHTML = `<p class="error">${e.message}</p>`;
+  }
+}
+
 async function loadEventsTab(content) {
   content.innerHTML = '<div class="loading">Loading...</div>';
   try {
@@ -517,10 +812,16 @@ async function loadEventsTab(content) {
         <h2>Recent Events</h2>
         <p style="font-size:1rem;color:var(--text-muted);margin-bottom:1rem">Edit or delete events. Changes recalculate game state.</p>
         <div class="admin-list">
-          ${res.at_bats.map(ab => `
+          ${res.at_bats.map(ab => {
+            const isDef = ab.event_side === 'defense';
+            const opts = isDef
+              ? [['single','K'],['double','OUT'],['triple','DP'],['home_run','TP']]
+              : [['single','1B'],['double','2B'],['triple','3B'],['home_run','HR']];
+            return `
             <div class="admin-item" id="event-${ab.id}">
               <div class="admin-item-info" style="flex:1">
-                <span class="play-type play-${ab.hit_type}" style="font-size:0.5rem">${formatHit(ab.hit_type)}</span>
+                <span class="play-type play-${ab.hit_type} ${isDef ? 'play-defense-type' : ''}" style="font-size:0.5rem">${sideFormatHit(ab.hit_type, ab.event_side)}</span>
+                ${isDef ? '<span class="badge" style="background:#e53935;color:white;border:none">defense</span>' : ''}
                 <strong>${ab.player_name}</strong>
                 <span class="badge">${ab.team_name}</span>
                 ${ab.description ? `<span style="color:var(--text-muted);font-style:italic">ID: ${ab.description}</span>` : ''}
@@ -529,16 +830,13 @@ async function loadEventsTab(content) {
               </div>
               <div class="admin-item-actions">
                 <select class="form-input edit-hit-type" data-id="${ab.id}" style="width:auto;padding:0.2rem 0.4rem;font-size:1rem">
-                  <option value="single" ${ab.hit_type === 'single' ? 'selected' : ''}>1B</option>
-                  <option value="double" ${ab.hit_type === 'double' ? 'selected' : ''}>2B</option>
-                  <option value="triple" ${ab.hit_type === 'triple' ? 'selected' : ''}>3B</option>
-                  <option value="home_run" ${ab.hit_type === 'home_run' ? 'selected' : ''}>HR</option>
+                  ${opts.map(([v,l]) => `<option value="${v}" ${ab.hit_type === v ? 'selected' : ''}>${l}</option>`).join('')}
                 </select>
                 <button class="btn btn-sm btn-primary save-event" data-id="${ab.id}">Save</button>
                 <button class="btn btn-sm btn-danger delete-event" data-id="${ab.id}">Delete</button>
               </div>
-            </div>
-          `).join('')}
+            </div>`;
+          }).join('')}
         </div>
       </div>`;
 

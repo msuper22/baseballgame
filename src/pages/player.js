@@ -2,6 +2,7 @@ import { api, isLoggedIn } from '../api.js';
 import { navigate } from '../router.js';
 import { renderStatsTable } from '../components/stats-table.js';
 import { showToast } from '../components/toast.js';
+import { fmtAvg, fmtSlg } from '../lib/format.js';
 
 export async function playerPage(app, params) {
   if (!isLoggedIn()) { navigate('/login'); return; }
@@ -22,8 +23,8 @@ export async function playerPage(app, params) {
     const { player, career, series_stats } = res;
 
     const hits = (career.singles || 0) + (career.doubles || 0) + (career.triples || 0) + (career.home_runs || 0);
-    const avg = career.total_at_bats ? (hits / career.total_at_bats).toFixed(3) : '.000';
-    const slg = career.total_at_bats ? (career.total_bases / career.total_at_bats).toFixed(3) : '.000';
+    const avg = fmtAvg(career.total_at_bats ? hits / career.total_at_bats : 0);
+    const slg = fmtSlg(career.total_at_bats ? career.total_bases / career.total_at_bats : 0);
     const tbPerAb = career.total_at_bats ? (career.total_bases / career.total_at_bats).toFixed(2) : '0.00';
 
     // Player info header
@@ -47,10 +48,6 @@ export async function playerPage(app, params) {
         <div class="player-stat-box">
           <span class="player-stat-value">${career.total_bases || 0}</span>
           <span class="player-stat-label">TB</span>
-        </div>
-        <div class="player-stat-box">
-          <span class="player-stat-value">${career.runs_batted_in || 0}</span>
-          <span class="player-stat-label">RBI</span>
         </div>
         <div class="player-stat-box">
           <span class="player-stat-value">${career.singles || 0}</span>
@@ -90,14 +87,13 @@ export async function playerPage(app, params) {
           ...s,
           series_label: s.series_name + (s.is_active ? ' *' : ''),
           dates: s.start_date + ' - ' + s.end_date,
-          avg: s.total_at_bats ? (((s.singles||0) + (s.doubles||0) + (s.triples||0) + (s.home_runs||0)) / s.total_at_bats).toFixed(3) : '.000',
-          slg: s.total_at_bats ? (s.total_bases / s.total_at_bats).toFixed(3) : '.000',
+          avg: fmtAvg(s.total_at_bats ? ((s.singles||0) + (s.doubles||0) + (s.triples||0) + (s.home_runs||0)) / s.total_at_bats : 0),
+          slg: fmtSlg(s.total_at_bats ? s.total_bases / s.total_at_bats : 0),
         })),
         [
           { key: 'series_label', label: 'Series', sortable: true },
           { key: 'total_at_bats', label: 'AB', sortable: true },
           { key: 'total_bases', label: 'TB', sortable: true },
-          { key: 'runs_batted_in', label: 'RBI', sortable: true },
           { key: 'singles', label: '1B', sortable: true },
           { key: 'doubles', label: '2B', sortable: true },
           { key: 'triples', label: '3B', sortable: true },

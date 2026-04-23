@@ -2,3 +2,7 @@ node_modules/
 dist/
 .wrangler/
 .dev.vars
+.claude/
+screenshots/
+docs/
+tests/

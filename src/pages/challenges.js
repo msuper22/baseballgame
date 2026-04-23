@@ -20,6 +20,10 @@ export async function challengesPage(app) {
             </select>
             <input type="date" id="challenge-date" class="form-input" required>
             <input type="time" id="challenge-time" class="form-input">
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:0.6rem">Innings</label>
+              <input type="number" id="challenge-innings" class="form-input" value="9" min="1" max="18" style="width:80px">
+            </div>
             <input type="text" id="challenge-message" class="form-input" placeholder="Message (optional)" style="min-width:200px">
             <button type="submit" class="btn btn-primary">Send Challenge</button>
           </form>
@@ -56,6 +60,8 @@ export async function challengesPage(app) {
       }
 
       try {
+        const inningsEl = document.getElementById('challenge-innings');
+        const innings = parseInt(inningsEl?.value) || 9;
         await api('/challenges', {
           method: 'POST',
           body: JSON.stringify({
@@ -63,6 +69,7 @@ export async function challengesPage(app) {
             proposed_date: date,
             proposed_time: time || null,
             message: message || null,
+            innings,
           }),
         });
         showToast('Challenge sent!', 'success');
@@ -115,6 +122,7 @@ export async function challengesPage(app) {
             <div class="challenge-info">
               <strong>${ch.challenger_team_name}</strong> wants to play!
               <span class="challenge-date">${formatDate(ch.proposed_date)}${ch.proposed_time ? ' at ' + ch.proposed_time : ''}</span>
+              <span class="badge">${ch.innings || 9} innings</span>
               ${ch.message ? `<p class="challenge-message">"${ch.message}"</p>` : ''}
               <span class="challenge-captain">From: ${ch.challenger_captain_name}</span>
               <span class="challenge-expires">Expires: ${timeUntil(ch.expires_at)}</span>
@@ -169,6 +177,7 @@ export async function challengesPage(app) {
             <div class="challenge-info">
               You challenged <strong>${ch.challenged_team_name}</strong>
               <span class="challenge-date">${formatDate(ch.proposed_date)}${ch.proposed_time ? ' at ' + ch.proposed_time : ''}</span>
+              <span class="badge">${ch.innings || 9} innings</span>
               ${ch.message ? `<p class="challenge-message">"${ch.message}"</p>` : ''}
               <span class="challenge-expires">Expires: ${timeUntil(ch.expires_at)}</span>
             </div>

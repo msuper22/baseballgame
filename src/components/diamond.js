@@ -1,3 +1,7 @@
+// Track last-shown stat values per team so we only animate on actual changes,
+// not every time the dashboard polls and re-renders.
+const lastShown = new Map();
+
 /**
  * Renders a baseball field SVG with runners, team name, and stats.
  * Accurate fan-shaped layout matching real field proportions.
@@ -31,9 +35,19 @@ export function renderDiamond(container, state) {
   const sx = 200, sy = 110; // second
   const tx = 110, ty = 210; // third
 
+  // SVG drawable area (matches viewBox)
+  const SVG_W = 400;
+  const PAD = 4;
+
   function renderRunner(x, y, name, labelX, labelY) {
     if (!name) return '';
-    const pillW = getTextWidth(name, 11) + 22;
+    // Truncate overly long names so the pill stays reasonable
+    const display = name.length > 14 ? name.slice(0, 13) + '…' : name;
+    const pillW = Math.min(getTextWidth(display, 12) + 22, SVG_W - 2 * PAD);
+    // Clamp so the pill never crosses the SVG edges
+    let clampedX = labelX;
+    if (clampedX - pillW / 2 < PAD) clampedX = PAD + pillW / 2;
+    if (clampedX + pillW / 2 > SVG_W - PAD) clampedX = SVG_W - PAD - pillW / 2;
     return `
       <g class="runner-group">
         <circle cx="${x}" cy="${y}" r="20" fill="${teamColor}" opacity="0.2">
@@ -45,10 +59,10 @@ export function renderDiamond(container, state) {
         <text x="${x}" y="${y + 4}" text-anchor="middle" font-size="10" font-weight="800" fill="${teamColor}" font-family="Arial, Helvetica, sans-serif">
           ${getInitials(name)}
         </text>
-        <rect x="${labelX - pillW/2}" y="${labelY - 14}" width="${pillW}" height="28" rx="14"
+        <rect x="${clampedX - pillW/2}" y="${labelY - 14}" width="${pillW}" height="28" rx="14"
               fill="${teamColor}" opacity="0.92"/>
-        <text x="${labelX}" y="${labelY + 6}" text-anchor="middle" font-size="19" font-weight="800" fill="white" font-family="Arial, Helvetica, sans-serif" class="runner-label">
-          ${name}
+        <text x="${clampedX}" y="${labelY + 6}" text-anchor="middle" font-size="17" font-weight="800" fill="white" font-family="Arial, Helvetica, sans-serif" class="runner-label">
+          ${display}
         </text>
       </g>`;
   }
@@ -178,11 +192,11 @@ export function renderDiamond(container, state) {
 
       <div class="diamond-stats">
         <div class="stat">
-          <span class="stat-value stat-animate" data-target="${runs}">0</span>
+          <span class="stat-value stat-animate" data-stat="runs" data-target="${runs}">${runs}</span>
           <span class="stat-label">Runs</span>
         </div>
         <div class="stat stat-divider">
-          <span class="stat-value stat-animate" data-target="${totalBases}">0</span>
+          <span class="stat-value stat-animate" data-stat="bases" data-target="${totalBases}">${totalBases}</span>
           <span class="stat-label">Total Bases</span>
         </div>
         <div class="stat">
@@ -192,23 +206,37 @@ export function renderDiamond(container, state) {
       </div>
     </div>`;
 
-  // Animate the stat counters
+  // Animate counters only when the number actually changed since last render.
+  const trackKey = state.team_id ?? state.team_name ?? 'unknown';
+  const prev = lastShown.get(trackKey) || {};
+
   requestAnimationFrame(() => {
     container.querySelectorAll('.stat-animate').forEach(el => {
+      const statKey = el.dataset.stat;
       const target = parseInt(el.dataset.target) || 0;
-      if (target === 0) { el.textContent = '0'; return; }
-      animateCounter(el, target);
+      const prevVal = prev[statKey];
+
+      if (prevVal === undefined || prevVal === target) {
+        // First render, or no change — just set the value, no animation.
+        el.textContent = String(target);
+      } else {
+        // Value changed — animate from previous to new.
+        animateCounter(el, prevVal, target);
+      }
     });
   });
+
+  lastShown.set(trackKey, { runs, bases: totalBases });
 }
 
-function animateCounter(el, target) {
+function animateCounter(el, from, target) {
   const duration = 800;
   const start = performance.now();
+  const delta = target - from;
   function tick(now) {
     const progress = Math.min((now - start) / duration, 1);
     const eased = 1 - Math.pow(1 - progress, 3);
-    el.textContent = Math.round(eased * target);
+    el.textContent = Math.round(from + eased * delta);
     if (progress < 1) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);

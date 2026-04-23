@@ -3,13 +3,16 @@ import { Env } from '../types';
 import { authRequired, adminRequired } from '../middleware/auth';
 import { logAudit } from '../services/audit';
 import { updateTournamentStandings } from './tournaments';
+import { centralStamp } from '../services/tz';
 
 export const seriesRoutes = new Hono<{ Bindings: Env }>();
 
 // List all series
 seriesRoutes.get('/', authRequired, async (c) => {
+  const includeDeleted = c.req.query('include_deleted') === 'true';
+  const where = includeDeleted ? '' : 'WHERE deleted_at IS NULL';
   const series = await c.env.DB.prepare(
-    'SELECT * FROM series ORDER BY created_at DESC'
+    `SELECT * FROM series ${where} ORDER BY created_at DESC`
   ).all();
   return c.json({ series: series.results });
 });
@@ -17,7 +20,7 @@ seriesRoutes.get('/', authRequired, async (c) => {
 // Get active series
 seriesRoutes.get('/active', authRequired, async (c) => {
   const series = await c.env.DB.prepare(
-    'SELECT * FROM series WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1'
+    'SELECT * FROM series WHERE is_active = 1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1'
   ).first();
   if (!series) return c.json({ error: 'No active series' }, 404);
   return c.json({ series });
@@ -47,24 +50,38 @@ seriesRoutes.post('/', authRequired, adminRequired, async (c) => {
   return c.json({ series: { id: seriesId, name, start_date, end_date, is_active: 1 } }, 201);
 });
 
-// Delete series (admin) - cascades to at_bats and base_state
+// Delete series (admin). By default soft-deletes (sets deleted_at) so
+// games/history are preserved. ?force=true performs the full cascade wipe.
 seriesRoutes.delete('/:id', authRequired, adminRequired, async (c) => {
   const id = c.req.param('id');
+  const force = c.req.query('force') === 'true';
 
   const series = await c.env.DB.prepare('SELECT id FROM series WHERE id = ?').bind(id).first();
   if (!series) return c.json({ error: 'Series not found' }, 404);
 
-  // Delete associated data first, then the series
-  await c.env.DB.prepare('DELETE FROM game_base_state WHERE game_id IN (SELECT id FROM games WHERE series_id = ?)').bind(id).run();
-  await c.env.DB.prepare('DELETE FROM challenges WHERE series_id = ?').bind(id).run();
-  await c.env.DB.prepare('DELETE FROM tournament_standings WHERE tournament_id IN (SELECT id FROM tournaments WHERE series_id = ?)').bind(id).run();
-  await c.env.DB.prepare('DELETE FROM at_bats WHERE series_id = ?').bind(id).run();
-  await c.env.DB.prepare('DELETE FROM games WHERE series_id = ?').bind(id).run();
-  await c.env.DB.prepare('DELETE FROM tournaments WHERE series_id = ?').bind(id).run();
-  await c.env.DB.prepare('DELETE FROM base_state WHERE series_id = ?').bind(id).run();
-  await c.env.DB.prepare('DELETE FROM series WHERE id = ?').bind(id).run();
+  if (!force) {
+    await c.env.DB.prepare(
+      'UPDATE series SET deleted_at = ?, is_active = 0 WHERE id = ?'
+    ).bind(centralStamp(), id).run();
+    return c.json({ success: true, mode: 'soft' });
+  }
 
-  return c.json({ success: true });
+  // Hard cascade wipe. at_bats deletion must precede half_innings (FK).
+  const db = c.env.DB;
+  const gameSub = '(SELECT id FROM games WHERE series_id = ?)';
+  await db.prepare(`DELETE FROM chat_messages WHERE game_id IN ${gameSub}`).bind(id).run();
+  await db.prepare(`DELETE FROM reactions WHERE game_id IN ${gameSub}`).bind(id).run();
+  await db.prepare(`DELETE FROM game_base_state WHERE game_id IN ${gameSub}`).bind(id).run();
+  await db.prepare('DELETE FROM challenges WHERE series_id = ?').bind(id).run();
+  await db.prepare('DELETE FROM tournament_standings WHERE tournament_id IN (SELECT id FROM tournaments WHERE series_id = ?)').bind(id).run();
+  await db.prepare('DELETE FROM at_bats WHERE series_id = ?').bind(id).run();
+  await db.prepare(`DELETE FROM half_innings WHERE game_id IN ${gameSub}`).bind(id).run();
+  await db.prepare('DELETE FROM games WHERE series_id = ?').bind(id).run();
+  await db.prepare('DELETE FROM tournaments WHERE series_id = ?').bind(id).run();
+  await db.prepare('DELETE FROM base_state WHERE series_id = ?').bind(id).run();
+  await db.prepare('DELETE FROM series WHERE id = ?').bind(id).run();
+
+  return c.json({ success: true, mode: 'hard' });
 });
 
 // Update series (admin)

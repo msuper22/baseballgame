@@ -20,6 +20,8 @@ import { spectatorPage } from './pages/spectator.js';
 import { spectatorGamePage } from './pages/spectator-game.js';
 import { registerSpectatorPage } from './pages/register-spectator.js';
 import { initTheme } from './theme.js';
+import { maybeShowOnboarding } from './components/onboarding.js';
+import { getUser } from './api.js';
 import './style.css';
 
 // Init theme before anything renders
@@ -49,6 +51,9 @@ route('/admin', adminPage);
 // Init
 renderNav();
 startRouter();
+
+// Fire onboarding for players on first load after login
+try { maybeShowOnboarding(getUser()); } catch {}
 
 // Re-render nav on route changes
 window.addEventListener('hashchange', () => renderNav());

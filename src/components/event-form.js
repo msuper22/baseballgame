@@ -2,6 +2,7 @@ import { api, getUser, isMod } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { playBatCrack, playRunCelebration, playError } from '../sounds.js';
 import { launchConfetti } from '../confetti.js';
+import { showGameOver } from './celebration.js';
 
 let lastEvent = null; // Track last event for undo
 
@@ -20,25 +21,62 @@ export async function renderEventForm(container, options = {}) {
   const canLogForOthers = isMod();
   const filteredPlayers = canLogForOthers ? players : players.filter(p => p.id === user.id);
 
-  const gameLabel = options.gameInfo
-    ? `<p class="game-context">Logging for: <strong>${options.gameInfo.home_team_name} vs ${options.gameInfo.away_team_name}</strong></p>`
+  // Determine offense/defense context if this form is attached to a game
+  const g = options.gameInfo;
+  const hi = options.halfInning;
+  let side = null;
+  if (g && user?.team_id) {
+    const battingTeamId = g.current_half === 'top' ? g.away_team_id : g.home_team_id;
+    if (user.team_id === battingTeamId) side = 'offense';
+    else if (user.team_id === g.home_team_id || user.team_id === g.away_team_id) side = 'defense';
+  }
+
+  const gameLabel = g
+    ? `<p class="game-context">Logging for: <strong>${g.home_team_name} vs ${g.away_team_name}</strong></p>`
     : '';
 
-  container.innerHTML = `
-    <div class="event-form">
-      <h3>Log Production Event</h3>
-      ${gameLabel}
-      <div class="form-group">
-        <label for="event-player">Player</label>
-        <select id="event-player" class="form-input">
-          ${filteredPlayers.map(p => `<option value="${p.id}" ${p.id === user.id ? 'selected' : ''}>${p.display_name} (${p.team_name || 'No team'})</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="event-lead-id">Lead ID</label>
-        <input type="text" id="event-lead-id" class="form-input" placeholder="Enter lead ID for this event" required>
-      </div>
-      <div class="hit-buttons">
+  const sideBanner = side === 'defense'
+    ? `<div class="defense-banner">
+        <div class="defense-title">🛡 YOU'RE ON DEFENSE</div>
+        <div class="defense-sub">
+          ${g.current_half === 'top' ? 'Top' : 'Bottom'} of inning ${g.current_inning} — ${hi?.batting_team_name || 'other team'} is batting
+        </div>
+        <div class="defense-counters">
+          <span class="count-chip">Outs: <strong>${hi?.outs ?? 0}</strong> / 3</span>
+          <span class="count-chip">Strikes: <strong>${hi?.strikes ?? 0}</strong> / 2</span>
+        </div>
+      </div>`
+    : side === 'offense'
+    ? `<div class="offense-banner">
+        <div class="offense-title">⚾ YOU'RE AT BAT</div>
+        <div class="offense-sub">${g.current_half === 'top' ? 'Top' : 'Bottom'} of inning ${g.current_inning}</div>
+      </div>`
+    : '';
+
+  const buttons = side === 'defense'
+    ? `<div class="hit-buttons">
+        <button class="hit-btn hit-single" data-type="single">
+          <span class="hit-icon">K</span>
+          <span class="hit-label">Strike</span>
+          <span class="hit-desc">App Taken — +1 strike</span>
+        </button>
+        <button class="hit-btn hit-double" data-type="double">
+          <span class="hit-icon">OUT</span>
+          <span class="hit-label">Caught Out</span>
+          <span class="hit-desc">Light House — +1 out</span>
+        </button>
+        <button class="hit-btn hit-triple" data-type="triple">
+          <span class="hit-icon">DP</span>
+          <span class="hit-label">Double Play</span>
+          <span class="hit-desc">Out — +2 outs</span>
+        </button>
+        <button class="hit-btn hit-homer" data-type="home_run">
+          <span class="hit-icon">SWAP</span>
+          <span class="hit-label">Sides Swap</span>
+          <span class="hit-desc">Out + Docs Back — your team now bats</span>
+        </button>
+      </div>`
+    : `<div class="hit-buttons">
         <button class="hit-btn hit-single" data-type="single">
           <span class="hit-icon">1B</span>
           <span class="hit-label">Single</span>
@@ -59,15 +97,55 @@ export async function renderEventForm(container, options = {}) {
           <span class="hit-label">Home Run</span>
           <span class="hit-desc">Out + Docs Back</span>
         </button>
+      </div>`;
+
+  container.innerHTML = `
+    <div class="event-form">
+      <h3>Log Production Event</h3>
+      ${gameLabel}
+      ${sideBanner}
+      <div class="form-group">
+        <label for="event-player">Player</label>
+        <select id="event-player" class="form-input">
+          ${filteredPlayers.map(p => `<option value="${p.id}" ${p.id === user.id ? 'selected' : ''}>${p.display_name} (${p.team_name || 'No team'})</option>`).join('')}
+        </select>
       </div>
+      <div class="form-group">
+        <label for="event-lead-id">Lead ID</label>
+        <input type="text" id="event-lead-id" class="form-input" placeholder="Enter lead ID for this event" required>
+      </div>
+      <div class="form-group">
+        <label for="event-credit-time">Credit Pull Time <span class="required-star">*</span></label>
+        <input type="datetime-local" id="event-credit-time" class="form-input" required>
+        <small class="form-hint">Enter when the credit pull actually happened. Events apply to the game's current inning — you can't back-date to an inning that already ended.</small>
+      </div>
+      ${buttons}
       <div id="event-result" class="event-result"></div>
       <div id="undo-container"></div>
     </div>`;
+
+  // Pre-fill credit time with now in local tz
+  const ctInput = container.querySelector('#event-credit-time');
+  if (ctInput) {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    ctInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  }
+
+  // Restore the undo button across re-renders (polling blows away innerHTML).
+  // lastEvent is module-scope and survives; if it's still in its 2-minute window
+  // and belongs to the current user, paint the undo bar back.
+  if (lastEvent && (Date.now() - lastEvent.timestamp) < 120000 && lastEvent.player_id === user?.id) {
+    showUndoButton();
+  } else if (lastEvent && (Date.now() - lastEvent.timestamp) >= 120000) {
+    lastEvent = null;
+  }
 
   container.querySelectorAll('.hit-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const playerId = parseInt(document.getElementById('event-player').value);
       const leadId = document.getElementById('event-lead-id').value.trim();
+      const creditTime = document.getElementById('event-credit-time')?.value;
       const hitType = btn.dataset.type;
       const resultDiv = document.getElementById('event-result');
 
@@ -77,9 +155,15 @@ export async function renderEventForm(container, options = {}) {
         return;
       }
 
+      if (!creditTime) {
+        showToast('Please enter the credit pull time', 'error');
+        document.getElementById('event-credit-time')?.focus();
+        return;
+      }
+
       btn.disabled = true;
       try {
-        const postBody = { player_id: playerId, hit_type: hitType, description: leadId };
+        const postBody = { player_id: playerId, hit_type: hitType, description: leadId, credit_time: creditTime };
         if (options.gameId) postBody.game_id = options.gameId;
 
         const res = await api('/at-bats', {
@@ -88,9 +172,22 @@ export async function renderEventForm(container, options = {}) {
         });
 
         const ab = res.at_bat;
-        let msg = `${ab.player_name} hit a ${ab.hit_type.replace('_', ' ')}!`;
-        if (ab.runs_scored > 0) {
-          msg += ` ${ab.runs_scored} run${ab.runs_scored > 1 ? 's' : ''} scored!`;
+        let msg;
+        if (res.event_side === 'defense') {
+          if (res.sides_swapped) {
+            msg = `${ab.player_name} — SIDES SWAPPED • Your team is now batting`;
+          } else {
+            const parts = [];
+            if (res.strikes_added) parts.push(`+${res.strikes_added} strike${res.strikes_added > 1 ? 's' : ''}`);
+            if (res.outs_added) parts.push(`+${res.outs_added} out${res.outs_added > 1 ? 's' : ''}`);
+            msg = `${ab.player_name} — ${parts.join(', ') || 'logged'}`;
+            if (res.inning_transitioned) msg += ' • INNING ENDED';
+          }
+        } else {
+          msg = `${ab.player_name} hit a ${ab.hit_type.replace('_', ' ')}!`;
+          if (ab.runs_scored > 0) {
+            msg += ` ${ab.runs_scored} run${ab.runs_scored > 1 ? 's' : ''} scored!`;
+          }
         }
         showToast(msg, 'success');
         resultDiv.innerHTML = `<p class="success">${msg}</p>`;
@@ -113,6 +210,15 @@ export async function renderEventForm(container, options = {}) {
             playRunCelebration(ab.runs_scored);
             launchConfetti(ab.runs_scored);
           }, 300);
+        }
+
+        if (res.game_completed && res.final) {
+          const f = res.final;
+          setTimeout(() => showGameOver({
+            homeName: f.home_name, awayName: f.away_name,
+            homeScore: f.home_runs, awayScore: f.away_runs,
+            winner: f.winner_name, mvp: f.mvp,
+          }), 600);
         }
 
         if (options.onSuccess) options.onSuccess(res);

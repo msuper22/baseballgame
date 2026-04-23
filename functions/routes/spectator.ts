@@ -1,23 +1,64 @@
 import { Hono } from 'hono';
 import { Env } from '../types';
 import { authRequired } from '../middleware/auth';
-import { getGameStateWithNames } from '../services/game-engine';
+import { getGameStateWithNames, autoActivateDueGames } from '../services/game-engine';
 import { containsProfanity } from '../services/profanity';
 
 export const spectatorRoutes = new Hono<{ Bindings: Env }>();
 
-// List all active games for spectating
+// List all active games for spectating, with base states + current half-inning
 spectatorRoutes.get('/games', authRequired, async (c) => {
+  await autoActivateDueGames(c.env.DB);
   const games = await c.env.DB.prepare(`
     SELECT g.*, ht.name as home_team_name, at2.name as away_team_name
     FROM games g
     JOIN teams ht ON g.home_team_id = ht.id
     JOIN teams at2 ON g.away_team_id = at2.id
-    WHERE g.status = 'active'
+    WHERE g.status IN ('active', 'extra_innings')
     ORDER BY g.started_at DESC
-  `).all();
+  `).all<any>();
 
-  return c.json({ games: games.results });
+  const gameIds = (games.results || []).map(g => g.id);
+  if (gameIds.length === 0) return c.json({ games: [] });
+
+  const placeholders = gameIds.map(() => '?').join(',');
+  const baseStates = await c.env.DB.prepare(`
+    SELECT gbs.*, t.name as team_name,
+      p1.display_name as first_base_name,
+      p2.display_name as second_base_name,
+      p3.display_name as third_base_name
+    FROM game_base_state gbs
+    JOIN teams t ON gbs.team_id = t.id
+    LEFT JOIN players p1 ON gbs.first_base = p1.id
+    LEFT JOIN players p2 ON gbs.second_base = p2.id
+    LEFT JOIN players p3 ON gbs.third_base = p3.id
+    WHERE gbs.game_id IN (${placeholders})
+  `).bind(...gameIds).all<any>();
+
+  const halfInnings = await c.env.DB.prepare(`
+    SELECT hi.*, bt.name as batting_team_name
+    FROM half_innings hi
+    JOIN teams bt ON hi.batting_team_id = bt.id
+    WHERE hi.game_id IN (${placeholders}) AND hi.is_complete = 0
+  `).bind(...gameIds).all<any>();
+
+  const basesByGame: Record<number, any[]> = {};
+  for (const bs of baseStates.results || []) {
+    (basesByGame[bs.game_id] ||= []).push(bs);
+  }
+
+  const hiByGame: Record<number, any> = {};
+  for (const hi of halfInnings.results || []) {
+    hiByGame[hi.game_id] = hi;
+  }
+
+  const enriched = (games.results || []).map(g => ({
+    ...g,
+    base_states: basesByGame[g.id] || [],
+    current_half_inning: hiByGame[g.id] || null,
+  }));
+
+  return c.json({ games: enriched });
 });
 
 // Get full game state for spectating

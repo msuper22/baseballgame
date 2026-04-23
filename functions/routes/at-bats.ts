@@ -2,14 +2,28 @@ import { Hono } from 'hono';
 import { Env, HitType, HIT_BASES, AtBat } from '../types';
 import { authRequired, modRequired, adminRequired } from '../middleware/auth';
 import { simulateAtBat, replayAtBats, RunnerState } from '../services/simulation';
+import {
+  clearSeriesBasesForGame,
+  ensureInitialHalfInning,
+  getCurrentHalfInning,
+  determineEventSide,
+  processOffenseEvent,
+  processDefenseEvent,
+  replayGameEvents,
+} from '../services/game-engine';
 import { logAudit } from '../services/audit';
+import { centralStamp, centralStampFromLocal, centralDate, centralTimeHM } from '../services/tz';
 
 export const atBatRoutes = new Hono<{ Bindings: Env }>();
 
 // Log a production event (mod+ or self)
 atBatRoutes.post('/', authRequired, async (c) => {
   const user = c.get('user');
-  const { player_id, hit_type, description, game_id } = await c.req.json();
+  const { player_id, hit_type, description, game_id, credit_time } = await c.req.json();
+
+  if (!credit_time) {
+    return c.json({ error: 'credit_time is required — enter when the credit pull happened' }, 400);
+  }
 
   // Players can log for themselves, mods/admins can log for anyone
   if (user.role === 'player' && player_id !== user.sub) {
@@ -48,34 +62,161 @@ atBatRoutes.post('/', authRequired, async (c) => {
     return c.json({ error: 'Player not found or not on a team' }, 400);
   }
 
-  // If game_id provided, validate the game
-  let gameInfo: any = null;
+  const bases = HIT_BASES[hit_type as HitType];
+
+  // ─── GAME-SCOPED EVENT: route through the engine for offense/defense split ───
   if (game_id) {
-    gameInfo = await c.env.DB.prepare(
+    let game = await c.env.DB.prepare(
       'SELECT * FROM games WHERE id = ? AND series_id = ?'
-    ).bind(game_id, series.id).first();
+    ).bind(game_id, series.id).first<any>();
 
-    if (!gameInfo) return c.json({ error: 'Game not found in current series' }, 400);
-    if (gameInfo.status === 'completed') return c.json({ error: 'This game is already completed' }, 400);
-    if (gameInfo.status === 'cancelled') return c.json({ error: 'This game has been cancelled' }, 400);
+    if (!game) return c.json({ error: 'Game not found in current series' }, 400);
+    if (game.status === 'completed') return c.json({ error: 'This game is already completed' }, 400);
+    if (game.status === 'cancelled') return c.json({ error: 'This game has been cancelled' }, 400);
 
-    // Verify player's team is in this game
-    if (player.team_id !== gameInfo.home_team_id && player.team_id !== gameInfo.away_team_id) {
+    if (player.team_id !== game.home_team_id && player.team_id !== game.away_team_id) {
       return c.json({ error: 'Player\'s team is not in this game' }, 400);
     }
 
-    // Auto-activate game on first event if still scheduled
-    if (gameInfo.status === 'scheduled') {
+    // A scheduled game can only accept events if its scheduled start time has
+    // passed (Central) AND its tournament is active (if it belongs to one).
+    if (game.status === 'scheduled') {
+      const todayC = centralDate();
+      const timeC = centralTimeHM();
+      const hasStarted =
+        game.scheduled_date < todayC ||
+        (game.scheduled_date === todayC && (!game.scheduled_time || game.scheduled_time <= timeC));
+      if (!hasStarted) {
+        const when = game.scheduled_time
+          ? `${game.scheduled_date} at ${game.scheduled_time} Central`
+          : game.scheduled_date;
+        return c.json({ error: `This game hasn't started yet — scheduled for ${when}` }, 400);
+      }
+      // Tournament gate: don't activate draft-tournament games until the admin activates.
+      if (game.tournament_id) {
+        const t = await c.env.DB.prepare('SELECT status FROM tournaments WHERE id = ?').bind(game.tournament_id).first<any>();
+        if (t && t.status !== 'active') {
+          return c.json({ error: 'This game\'s tournament is still in draft — an admin must activate it first' }, 400);
+        }
+      }
       await c.env.DB.prepare("UPDATE games SET status = 'active' WHERE id = ?").bind(game_id).run();
+      await clearSeriesBasesForGame(c.env.DB, series.id, game.home_team_id, game.away_team_id);
+      game.status = 'active';
+    }
+
+    // Guarantee a half-inning exists before routing through the engine
+    await ensureInitialHalfInning(c.env.DB, game.id, game.home_team_id, game.away_team_id);
+    game = await c.env.DB.prepare('SELECT * FROM games WHERE id = ?').bind(game.id).first<any>();
+
+    const halfInning = await getCurrentHalfInning(c.env.DB, game);
+    if (!halfInning) return c.json({ error: 'No current half-inning for this game' }, 500);
+
+    const side = determineEventSide(game, player.team_id);
+    // credit_time stored for records; the event ALWAYS applies to the game's
+    // current half-inning — no back-dating to an inning that already ended.
+    const creditTime = centralStampFromLocal(String(credit_time));
+
+    // Ensure series base_state row exists (for leaderboard totals)
+    await c.env.DB.prepare(
+      'INSERT OR IGNORE INTO base_state (series_id, team_id) VALUES (?, ?)'
+    ).bind(series.id, player.team_id).run();
+
+    if (side === 'offense') {
+      const off = await processOffenseEvent(
+        c.env.DB, game, halfInning, player.id, hit_type as HitType,
+        creditTime, description || null, user.sub
+      );
+
+      // Mirror runners/totals into game_base_state so per-team diamond UI stays accurate
+      await c.env.DB.prepare(
+        'INSERT OR IGNORE INTO game_base_state (game_id, team_id) VALUES (?, ?)'
+      ).bind(game.id, player.team_id).run();
+
+      const refreshedHi = await c.env.DB.prepare('SELECT * FROM half_innings WHERE id = ?').bind(halfInning.id).first<any>();
+      await c.env.DB.prepare(
+        `UPDATE game_base_state SET first_base = ?, second_base = ?, third_base = ?,
+         total_runs = total_runs + ?, total_bases = total_bases + ?
+         WHERE game_id = ? AND team_id = ?`
+      ).bind(
+        refreshedHi?.first_base ?? null, refreshedHi?.second_base ?? null, refreshedHi?.third_base ?? null,
+        off.runsScored, bases, game.id, player.team_id
+      ).run();
+
+      // Series-level leaderboard totals (runs + TB)
+      await c.env.DB.prepare(
+        `UPDATE base_state SET total_runs = total_runs + ?, total_bases = total_bases + ?
+         WHERE series_id = ? AND team_id = ?`
+      ).bind(off.runsScored, bases, series.id, player.team_id).run();
+
+      await logAudit(c.env.DB, user.sub, 'log_event', 'at_bat', off.atBatId,
+        `${player.display_name} ${hit_type} (offense, ${off.runsScored} runs) [Game ${game.id}]`);
+
+      const updatedState = await getBaseStateWithNames(c.env.DB, series.id, player.team_id);
+      const final = await buildGameCompletionPayload(c.env.DB, game.id);
+      return c.json({
+        at_bat: {
+          id: off.atBatId,
+          player_id: player.id,
+          player_name: player.display_name,
+          hit_type,
+          bases,
+          runs_scored: off.runsScored,
+          event_side: 'offense',
+          created_at: centralStamp(),
+        },
+        event_side: 'offense',
+        inning_changed: off.inningChanged,
+        base_state: updatedState,
+        scoring_players: off.scoringPlayerIds,
+        ...final,
+      }, 201);
+    } else {
+      // Defense event — engine handles strikes/outs/inning transitions
+      const def = await processDefenseEvent(
+        c.env.DB, game, halfInning, player.id, hit_type as HitType,
+        creditTime, description || null, user.sub
+      );
+
+      // Series-level TB counter still accumulates (production is production)
+      await c.env.DB.prepare(
+        `UPDATE base_state SET total_bases = total_bases + ?
+         WHERE series_id = ? AND team_id = ?`
+      ).bind(bases, series.id, player.team_id).run();
+
+      await logAudit(c.env.DB, user.sub, 'log_event', 'at_bat', def.atBatId,
+        `${player.display_name} ${hit_type} (defense, +${def.defenseResult.strikesAdded}K +${def.defenseResult.outsAdded}O) [Game ${game.id}]`);
+
+      const updatedState = await getBaseStateWithNames(c.env.DB, series.id, player.team_id);
+      const final = await buildGameCompletionPayload(c.env.DB, game.id);
+      return c.json({
+        at_bat: {
+          id: def.atBatId,
+          player_id: player.id,
+          player_name: player.display_name,
+          hit_type,
+          bases,
+          runs_scored: 0,
+          event_side: 'defense',
+          created_at: centralStamp(),
+        },
+        event_side: 'defense',
+        strikes_added: def.defenseResult.strikesAdded,
+        outs_added: def.defenseResult.outsAdded,
+        total_strikes: def.defenseResult.totalStrikes,
+        total_outs: def.defenseResult.totalOuts,
+        inning_transitioned: def.inningTransitioned,
+        sides_swapped: def.defenseResult.sidesSwap,
+        base_state: updatedState,
+        ...final,
+      }, 201);
     }
   }
 
-  // Get current base state
+  // ─── AD-HOC EVENT (no game_id): legacy offense-only path ───
   let baseStateRow = await c.env.DB.prepare(
     'SELECT * FROM base_state WHERE series_id = ? AND team_id = ?'
   ).bind(series.id, player.team_id).first<any>();
 
-  // Create base_state if it doesn't exist yet
   if (!baseStateRow) {
     await c.env.DB.prepare(
       'INSERT INTO base_state (series_id, team_id) VALUES (?, ?)'
@@ -89,20 +230,16 @@ atBatRoutes.post('/', authRequired, async (c) => {
     third: baseStateRow.third_base,
   };
 
-  // Run simulation
   const result = simulateAtBat(currentBases, player.id, hit_type as HitType);
-  const bases = HIT_BASES[hit_type as HitType];
 
-  // Insert at-bat record
   const insertResult = await c.env.DB.prepare(
-    `INSERT INTO at_bats (series_id, player_id, team_id, hit_type, bases, runs_scored, description, entered_by, game_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO at_bats (series_id, player_id, team_id, hit_type, bases, runs_scored, description, entered_by, event_side)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'offense')`
   ).bind(
     series.id, player.id, player.team_id, hit_type, bases,
-    result.runsScored, description || null, user.sub, game_id || null
+    result.runsScored, description || null, user.sub
   ).run();
 
-  // Update base state
   await c.env.DB.prepare(
     `UPDATE base_state SET first_base = ?, second_base = ?, third_base = ?,
      total_runs = total_runs + ?, total_bases = total_bases + ?
@@ -112,54 +249,9 @@ atBatRoutes.post('/', authRequired, async (c) => {
     result.runsScored, bases, series.id, player.team_id
   ).run();
 
-  // Game-level dual-write: update game base state and game score
-  if (game_id && gameInfo) {
-    let gameBaseState = await c.env.DB.prepare(
-      'SELECT * FROM game_base_state WHERE game_id = ? AND team_id = ?'
-    ).bind(game_id, player.team_id).first<any>();
-
-    if (!gameBaseState) {
-      await c.env.DB.prepare(
-        'INSERT INTO game_base_state (game_id, team_id) VALUES (?, ?)'
-      ).bind(game_id, player.team_id).run();
-      gameBaseState = { first_base: null, second_base: null, third_base: null, total_runs: 0, total_bases: 0 };
-    }
-
-    const gameBases: RunnerState = {
-      first: gameBaseState.first_base,
-      second: gameBaseState.second_base,
-      third: gameBaseState.third_base,
-    };
-
-    const gameResult = simulateAtBat(gameBases, player.id, hit_type as HitType);
-
-    await c.env.DB.prepare(
-      `UPDATE game_base_state SET first_base = ?, second_base = ?, third_base = ?,
-       total_runs = total_runs + ?, total_bases = total_bases + ?
-       WHERE game_id = ? AND team_id = ?`
-    ).bind(
-      gameResult.newBases.first, gameResult.newBases.second, gameResult.newBases.third,
-      gameResult.runsScored, bases, game_id, player.team_id
-    ).run();
-
-    // Update denormalized game scores
-    const isHome = player.team_id === gameInfo.home_team_id;
-    if (isHome) {
-      await c.env.DB.prepare(
-        'UPDATE games SET home_runs = home_runs + ?, home_bases = home_bases + ? WHERE id = ?'
-      ).bind(gameResult.runsScored, bases, game_id).run();
-    } else {
-      await c.env.DB.prepare(
-        'UPDATE games SET away_runs = away_runs + ?, away_bases = away_bases + ? WHERE id = ?'
-      ).bind(gameResult.runsScored, bases, game_id).run();
-    }
-  }
-
-  // Log audit
   await logAudit(c.env.DB, user.sub, 'log_event', 'at_bat', insertResult.meta.last_row_id as number,
-    `${player.display_name} hit ${hit_type} (${result.runsScored} runs)${game_id ? ` [Game ${game_id}]` : ''}`);
+    `${player.display_name} hit ${hit_type} (${result.runsScored} runs)`);
 
-  // Fetch updated base state with player names
   const updatedState = await getBaseStateWithNames(c.env.DB, series.id, player.team_id);
 
   return c.json({
@@ -170,8 +262,10 @@ atBatRoutes.post('/', authRequired, async (c) => {
       hit_type,
       bases,
       runs_scored: result.runsScored,
-      created_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      event_side: 'offense',
+      created_at: centralStamp(),
     },
+    event_side: 'offense',
     base_state: updatedState,
     scoring_players: result.scoringPlayerIds,
   }, 201);
@@ -248,7 +342,7 @@ atBatRoutes.delete('/undo-last', authRequired, async (c) => {
 
   // If the undone at-bat had a game_id, replay game-level state too
   if (lastAb.game_id) {
-    await replayGameState(c.env.DB, lastAb.game_id, lastAb.team_id);
+    await replayGameEvents(c.env.DB, lastAb.game_id);
   }
 
   await logAudit(c.env.DB, user.sub, 'undo_event', 'at_bat', lastAb.id,
@@ -295,9 +389,10 @@ atBatRoutes.put('/:id', authRequired, adminRequired, async (c) => {
     replayed.totalRuns, replayed.totalBases, atBat.series_id, atBat.team_id
   ).run();
 
-  // If the at-bat had a game_id, replay game-level state too
+  // If the at-bat had a game_id, do a full replay (rebuilds half-innings
+  // strikes/outs + bases + scoreboard + per-team rolling state)
   if (atBat.game_id) {
-    await replayGameState(c.env.DB, atBat.game_id, atBat.team_id);
+    await replayGameEvents(c.env.DB, atBat.game_id);
   }
 
   await logAudit(c.env.DB, user.sub, 'edit_event', 'at_bat', parseInt(id as string),
@@ -339,9 +434,10 @@ atBatRoutes.delete('/:id', authRequired, adminRequired, async (c) => {
     replayed.totalRuns, replayed.totalBases, atBat.series_id, atBat.team_id
   ).run();
 
-  // If the at-bat had a game_id, replay game-level state too
+  // If the at-bat had a game_id, do a full replay (rebuilds half-innings
+  // strikes/outs + bases + scoreboard + per-team rolling state)
   if (atBat.game_id) {
-    await replayGameState(c.env.DB, atBat.game_id, atBat.team_id);
+    await replayGameEvents(c.env.DB, atBat.game_id);
   }
 
   await logAudit(c.env.DB, user.sub, 'delete_event', 'at_bat', parseInt(id as string),
@@ -383,6 +479,45 @@ async function replayGameState(db: D1Database, gameId: number, teamId: number) {
         .bind(replayed.totalRuns, replayed.totalBases, gameId).run();
     }
   }
+}
+
+/**
+ * After any at-bat that might have completed the game, return the final-state
+ * payload for the client: winner name, score, MVP (top TB). Returns empty fields
+ * when the game is not yet completed.
+ */
+async function buildGameCompletionPayload(db: D1Database, gameId: number) {
+  const g = await db.prepare(
+    `SELECT g.*, ht.name as home_team_name, awt.name as away_team_name, wt.name as winner_name
+     FROM games g
+     JOIN teams ht ON g.home_team_id = ht.id
+     JOIN teams awt ON g.away_team_id = awt.id
+     LEFT JOIN teams wt ON g.winner_team_id = wt.id
+     WHERE g.id = ?`
+  ).bind(gameId).first<any>();
+  if (!g || g.status !== 'completed') {
+    return { game_completed: false };
+  }
+
+  const mvp = await db.prepare(
+    `SELECT p.display_name as player_name, SUM(ab.bases) as total_bases
+     FROM at_bats ab
+     JOIN players p ON p.id = ab.player_id
+     WHERE ab.game_id = ? AND ab.event_side = 'offense'
+     GROUP BY ab.player_id
+     ORDER BY total_bases DESC LIMIT 1`
+  ).bind(gameId).first<any>();
+
+  return {
+    game_completed: true,
+    final: {
+      winner_team_id: g.winner_team_id,
+      winner_name: g.winner_name,
+      home_name: g.home_team_name, home_runs: g.home_runs,
+      away_name: g.away_team_name, away_runs: g.away_runs,
+      mvp: mvp || null,
+    },
+  };
 }
 
 async function getBaseStateWithNames(db: D1Database, seriesId: number, teamId: number) {

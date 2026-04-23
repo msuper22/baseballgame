@@ -3,6 +3,9 @@ compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist"
 
+# Shared database across Team Hub apps (baseball + workout challenge).
+# Logical name: team-hub-db. Cloudflare label stays "baseballgame-db" because
+# D1 doesn't support renaming — binding is by database_id, so sharing works.
 [[d1_databases]]
 binding = "DB"
 database_name = "baseballgame-db"

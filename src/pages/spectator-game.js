@@ -5,6 +5,7 @@ import { renderScoreboard } from '../components/scoreboard.js';
 import { renderChat } from '../components/chat.js';
 import { renderEmotes } from '../components/emotes.js';
 import { showToast } from '../components/toast.js';
+import { formatHit } from '../components/hit-label.js';
 
 let refreshInterval = null;
 let chatCleanup = null;
@@ -26,10 +27,31 @@ export async function spectatorGamePage(app, params) {
         </div>
         <div class="spec-game-sidebar">
           <div id="spec-emotes"></div>
-          <div id="spec-chat"></div>
+          <button class="spec-sidebar-toggle" id="chat-toggle">
+            <span>Game Chat</span>
+            <span class="toggle-arrow" id="chat-arrow">&#9660;</span>
+          </button>
+          <div class="spec-sidebar-body expanded" id="chat-body">
+            <div id="spec-chat"></div>
+          </div>
         </div>
       </div>
     </div>`;
+
+  // Chat toggle
+  document.getElementById('chat-toggle')?.addEventListener('click', () => {
+    const body = document.getElementById('chat-body');
+    const arrow = document.getElementById('chat-arrow');
+    if (body.classList.contains('expanded')) {
+      body.classList.remove('expanded');
+      body.classList.add('collapsed');
+      arrow.classList.add('collapsed');
+    } else {
+      body.classList.remove('collapsed');
+      body.classList.add('expanded');
+      arrow.classList.remove('collapsed');
+    }
+  });
 
   await loadGameState(gameId);
   refreshInterval = setInterval(() => loadGameState(gameId), 8000);
@@ -92,7 +114,7 @@ async function loadGameState(gameId) {
           ${state.recent_plays.slice(0, 10).map(ab => `
             <div class="play-item">
               <span class="play-side ${ab.event_side === 'defense' ? 'play-defense' : 'play-offense'}">${ab.event_side === 'defense' ? 'DEF' : 'OFF'}</span>
-              <span class="play-type play-${ab.hit_type}">${formatHitType(ab.hit_type)}</span>
+              <span class="play-type play-${ab.hit_type} ${ab.event_side === 'defense' ? 'play-defense-type' : ''}">${formatHit(ab.hit_type, ab.event_side)}</span>
               <span class="play-player">${ab.player_name}</span>
               <span class="play-team">${ab.team_name}</span>
               ${ab.runs_scored > 0 ? `<span class="play-runs">+${ab.runs_scored}R</span>` : ''}

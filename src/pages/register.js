@@ -20,7 +20,7 @@ export async function registerPage(app) {
           </div>
           <div class="form-group">
             <label for="username">Username</label>
-            <input type="text" id="username" class="form-input" required autocomplete="username">
+            <input type="text" id="username" class="form-input" required autocomplete="username" placeholder="firstname.lastname">
           </div>
           <div class="form-group">
             <label for="password">Password</label>

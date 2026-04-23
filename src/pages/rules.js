@@ -1,12 +1,16 @@
-import { isLoggedIn } from '../api.js';
+import { isLoggedIn, isAdmin } from '../api.js';
 import { navigate } from '../router.js';
+import { showOnboarding } from '../components/onboarding.js';
 
 export async function rulesPage(app) {
   if (!isLoggedIn()) { navigate('/login'); return; }
 
   app.innerHTML = `
     <div class="container">
-      <h1>&#128214; Rules</h1>
+      <div class="dashboard-header">
+        <h1>&#128214; Rules</h1>
+        <button id="rewalkthrough-btn" class="btn btn-sm">Replay walkthrough</button>
+      </div>
 
       <div class="rules-section">
         <h2>How It Works</h2>
@@ -108,7 +112,6 @@ export async function rulesPage(app) {
           <li><strong>Runs (R):</strong> Total runs your team has scored. This is the main team ranking stat.</li>
           <li><strong>Total Bases (TB):</strong> Sum of all bases from your hits. Shows individual production.</li>
           <li><strong>At Bats (AB):</strong> Total events logged.</li>
-          <li><strong>RBI (Runs Batted In):</strong> Runs that scored as a result of your specific hits.</li>
           <li><strong>AVG (Batting Average):</strong> Hits divided by At Bats. In our game, every event is a hit, so AVG shows how consistently you're logging events. A player with 10 hits in 10 AB has a 1.000 AVG.</li>
           <li><strong>SLG (Slugging Percentage):</strong> Total Bases divided by At Bats. Measures the <em>quality</em> of your hits. A higher SLG means you're logging more valuable production events (doubles, triples, HRs). A player who only hits singles has a 1.000 SLG, while someone averaging doubles has a 2.000 SLG.</li>
         </ul>
@@ -119,7 +122,6 @@ export async function rulesPage(app) {
         <p>When a series ends, awards are automatically calculated and displayed on the series detail page:</p>
         <ul class="rules-list">
           <li><strong>Champion:</strong> Team with the most runs.</li>
-          <li><strong>RBI Leader:</strong> Player who drove in the most runs.</li>
           <li><strong>TB Leader:</strong> Player with the most total bases.</li>
           <li><strong>HR Leader:</strong> Player with the most home runs.</li>
           <li><strong>Hustle Award:</strong> Player with the most at-bats (most events logged).</li>
@@ -136,5 +138,121 @@ export async function rulesPage(app) {
           <li><strong>Admin:</strong> Full control — manage teams, players, series, edit/delete events, lock series, view audit log, and bulk import players.</li>
         </ul>
       </div>
+
+      ${isAdmin() ? `
+      <hr style="margin: 3rem 0; border-color: var(--border);">
+
+      <h1>&#128272; Admin Guide</h1>
+      <p style="color:var(--text-muted); margin-bottom: 1.5rem;">This section is only visible to admin accounts.</p>
+
+      <div class="rules-section">
+        <h2>Getting Started</h2>
+        <p>As an admin, you have full control over the app. Everything is managed from the <a href="#/admin" class="table-link">Admin Panel</a> (the "Admin" link in the nav bar). The panel has tabs for each area: Teams, Players, Series, Tournaments, Events, Audit Log, and Log Event.</p>
+      </div>
+
+      <div class="rules-section">
+        <h2>Managing Teams</h2>
+        <p>Go to <strong>Admin > Teams</strong>.</p>
+        <ul class="rules-list">
+          <li><strong>Create a team:</strong> Type a team name and click "Add Team." An invite code is generated automatically (e.g. <code>ABC123</code>).</li>
+          <li><strong>Share invite codes:</strong> Give each team's invite code to its players so they can self-register at the sign-up page.</li>
+          <li><strong>Delete a team:</strong> Click "Delete" next to the team. This will remove the team and unlink its players.</li>
+        </ul>
+      </div>
+
+      <div class="rules-section">
+        <h2>Managing Players</h2>
+        <p>Go to <strong>Admin > Players</strong>.</p>
+        <ul class="rules-list">
+          <li><strong>Add a player manually:</strong> Fill in display name, username, password, team, and role, then click "Add Player."</li>
+          <li><strong>Bulk import:</strong> Paste CSV lines in the format <code>display_name,username,team_id,password</code>. Password is optional and defaults to the username if omitted.</li>
+          <li><strong>Assign/remove captains:</strong> Click "Make Captain" or "Remove Captain" next to a player. Captains can send and accept challenges on behalf of their team.</li>
+          <li><strong>Deactivate a player:</strong> Click "Deactivate" to prevent them from logging in. They'll appear greyed out in the list.</li>
+          <li><strong>Roles:</strong>
+            <ul>
+              <li><em>Player</em> — can log events for themselves and undo within 2 minutes.</li>
+              <li><em>Mod</em> — can log events for any player on any team and moderate chat.</li>
+              <li><em>Admin</em> — full access to everything.</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <div class="rules-section">
+        <h2>Managing Series</h2>
+        <p>Go to <strong>Admin > Series</strong>. A series is a competition period (typically a week).</p>
+        <ul class="rules-list">
+          <li><strong>Create a series:</strong> Enter a name, start date, and end date. The new series becomes active immediately.</li>
+          <li><strong>End a series:</strong> Click "End Series" to mark it inactive. Awards are automatically calculated and shown on the series detail page.</li>
+          <li><strong>Lock a series:</strong> Click "Lock" to prevent any new events from being logged for that series. Useful once results are final.</li>
+          <li><strong>Delete a series:</strong> Permanently removes the series and ALL its data (events, base states, etc.). This cannot be undone.</li>
+        </ul>
+      </div>
+
+      <div class="rules-section">
+        <h2>Managing Tournaments</h2>
+        <p>Go to <strong>Admin > Tournaments</strong>. Tournaments are round-robin competitions within a series.</p>
+        <ol class="rules-list">
+          <li><strong>Create a tournament:</strong> Give it a name, pick the series it belongs to, and set start/end dates.</li>
+          <li><strong>Generate the schedule:</strong> Click "Setup Schedule" on a draft tournament. Check the teams to include, set days between rounds, and optionally set a default game time. Click "Generate Schedule" to auto-create all matchups.</li>
+          <li><strong>Activate:</strong> Click "Activate" to make the tournament live. Games will appear on the Schedule page.</li>
+          <li><strong>Complete:</strong> Click "Complete" when the tournament is finished. Final standings are locked in.</li>
+        </ol>
+      </div>
+
+      <div class="rules-section">
+        <h2>Managing Events</h2>
+        <p>Go to <strong>Admin > Events</strong>. Shows the 50 most recent production events.</p>
+        <ul class="rules-list">
+          <li><strong>Edit an event:</strong> Change the hit type dropdown (1B/2B/3B/HR) and click "Save." Game state is recalculated automatically.</li>
+          <li><strong>Delete an event:</strong> Click "Delete" to remove it. Base runners and scores are recalculated from scratch.</li>
+          <li><strong>Log an event for anyone:</strong> Use the "Log Event" tab to submit events on behalf of any player.</li>
+        </ul>
+      </div>
+
+      <div class="rules-section">
+        <h2>Audit Log</h2>
+        <p>Go to <strong>Admin > Audit Log</strong>. Every admin/mod action is recorded here — edits, deletes, undos, and more. Use this to track who did what and when.</p>
+      </div>
+
+      <div class="rules-section">
+        <h2>Challenges</h2>
+        <p>Team captains can challenge other teams to games from the <a href="#/challenges" class="table-link">Challenges</a> page. As an admin, be aware:</p>
+        <ul class="rules-list">
+          <li>Only captains can send and respond to challenges.</li>
+          <li>Challenges expire automatically after the proposed date passes.</li>
+          <li>When a challenge is accepted, a game is created automatically on the schedule.</li>
+          <li>You assign captains from the Players tab in the Admin Panel.</li>
+        </ul>
+      </div>
+
+      <div class="rules-section">
+        <h2>Spectators</h2>
+        <p>Anyone can register as a spectator without an invite code. Spectators can watch live games, use the game chat, and send emoji reactions. They cannot log events or appear on any team. The chat has a built-in profanity filter and rate limit (1 message per 3 seconds). Mods can delete chat messages.</p>
+      </div>
+
+      <div class="rules-section">
+        <h2>Quick Reference</h2>
+        <div class="rules-table-wrapper">
+          <table class="stats-table">
+            <thead>
+              <tr><th>Task</th><th>Where</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Create a new team</td><td>Admin > Teams > Add Team</td></tr>
+              <tr><td>Add players</td><td>Admin > Players > Add or Bulk Import</td></tr>
+              <tr><td>Start a new competition week</td><td>Admin > Series > Create Series</td></tr>
+              <tr><td>Set up a round-robin</td><td>Admin > Tournaments > Create + Generate Schedule</td></tr>
+              <tr><td>Fix a wrong event</td><td>Admin > Events > Edit or Delete</td></tr>
+              <tr><td>Make someone a captain</td><td>Admin > Players > Make Captain</td></tr>
+              <tr><td>See who did what</td><td>Admin > Audit Log</td></tr>
+              <tr><td>Lock results for a week</td><td>Admin > Series > Lock</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      ` : ''}
     </div>`;
+
+  document.getElementById('rewalkthrough-btn')?.addEventListener('click', () => showOnboarding());
 }

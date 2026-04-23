@@ -1,4 +1,4 @@
-import { isLoggedIn, isAdmin, isMod, isCaptain, getUser, clearToken, api } from '../api.js';
+import { isLoggedIn, isAdmin, isMod, isCaptain, isSpectator, getUser, clearToken, api } from '../api.js';
 import { navigate } from '../router.js';
 import { toggleTheme, getTheme } from '../theme.js';
 
@@ -14,17 +14,35 @@ export function renderNav() {
         <a href="#/" class="nav-logo">&#9918; LBCS</a>
         <button id="theme-btn" class="theme-toggle">${themeIcon}</button>
       </div>`;
-    document.getElementById('theme-btn')?.addEventListener('click', () => {
-      toggleTheme();
-      renderNav();
-    });
+    attachNavHandlers(nav);
     return;
   }
 
   const user = getUser();
+
+  // Spectators get a slim nav — no dashboard, no player-only links
+  if (isSpectator()) {
+    nav.innerHTML = `
+      <div class="nav-inner">
+        <a href="#/spectator" class="nav-logo">&#9918; LBCS</a>
+        <div class="nav-links">
+          <a href="#/spectator" class="nav-link">Spectate</a>
+          <a href="#/leaderboard" class="nav-link">Leaderboard</a>
+          <a href="#/schedule" class="nav-link">Schedule</a>
+          <a href="#/rules" class="nav-link">Rules</a>
+          <span class="nav-user">${user?.display_name || user?.username}</span>
+          <button id="theme-btn" class="theme-toggle">${themeIcon}</button>
+          <button id="logout-btn" class="btn btn-sm">Logout</button>
+        </div>
+        <button id="nav-toggle" class="nav-toggle">&#9776;</button>
+      </div>`;
+    attachNavHandlers(nav);
+    return;
+  }
+
   const adminLink = isAdmin() ? '<a href="#/admin" class="nav-link">Admin</a>' : '';
   const profileLink = `<a href="#/player/${user?.id}" class="nav-link">${isAdmin() ? 'My Profile' : 'Profile'}</a>`;
-  const logEventLink = isMod() || isLoggedIn() ? '<a href="#/log-event" class="nav-link">Log Event</a>' : '';
+  const logEventLink = '<a href="#/log-event" class="nav-link">Log Event</a>';
   const scheduleLink = '<a href="#/schedule" class="nav-link">Schedule</a>';
   const spectatorLink = '<a href="#/spectator" class="nav-link">Spectate</a>';
   const challengesLink = isCaptain() ? '<a href="#/challenges" class="nav-link">Challenges <span id="challenge-badge" class="badge-count"></span></a>' : '';
@@ -51,6 +69,21 @@ export function renderNav() {
       <button id="nav-toggle" class="nav-toggle">&#9776;</button>
     </div>`;
 
+  attachNavHandlers(nav);
+
+  // Load pending challenge count for captains
+  if (isCaptain()) {
+    api('/challenges/pending-count').then(res => {
+      const badge = document.getElementById('challenge-badge');
+      if (badge && res.count > 0) {
+        badge.textContent = res.count;
+        badge.style.display = 'inline-block';
+      }
+    }).catch(() => {});
+  }
+}
+
+function attachNavHandlers(nav) {
   document.getElementById('logout-btn')?.addEventListener('click', () => {
     clearToken();
     navigate('/login');
@@ -65,15 +98,4 @@ export function renderNav() {
   document.getElementById('nav-toggle')?.addEventListener('click', () => {
     nav.querySelector('.nav-links')?.classList.toggle('open');
   });
-
-  // Load pending challenge count for captains
-  if (isCaptain()) {
-    api('/challenges/pending-count').then(res => {
-      const badge = document.getElementById('challenge-badge');
-      if (badge && res.count > 0) {
-        badge.textContent = res.count;
-        badge.style.display = 'inline-block';
-      }
-    }).catch(() => {});
-  }
 }

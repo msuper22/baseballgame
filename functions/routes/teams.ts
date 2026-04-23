@@ -55,10 +55,37 @@ teamRoutes.put('/:id', authRequired, adminRequired, async (c) => {
   return c.json({ success: true });
 });
 
-// Delete team (admin)
+// Delete team (admin) — cascades through all team-related data
 teamRoutes.delete('/:id', authRequired, adminRequired, async (c) => {
   const id = c.req.param('id');
-  await c.env.DB.prepare('UPDATE players SET team_id = NULL WHERE team_id = ?').bind(id).run();
-  await c.env.DB.prepare('DELETE FROM teams WHERE id = ?').bind(id).run();
+  const db = c.env.DB;
+
+  // Null out nullable references
+  await db.prepare('UPDATE games SET winner_team_id = NULL WHERE winner_team_id = ?').bind(id).run();
+  await db.prepare('UPDATE players SET team_id = NULL WHERE team_id = ?').bind(id).run();
+
+  // Delete rows that reference games involving this team (must precede games delete)
+  const gameFilter = '(SELECT id FROM games WHERE home_team_id = ?1 OR away_team_id = ?1)';
+  await db.prepare(`DELETE FROM chat_messages WHERE game_id IN ${gameFilter}`).bind(id).run();
+  await db.prepare(`DELETE FROM reactions WHERE game_id IN ${gameFilter}`).bind(id).run();
+  await db.prepare(`DELETE FROM half_innings WHERE game_id IN ${gameFilter}`).bind(id).run();
+  await db.prepare(`DELETE FROM game_base_state WHERE game_id IN ${gameFilter}`).bind(id).run();
+
+  // at_bats: delete by direct team_id or by game_id on deleted games
+  await db.prepare(`DELETE FROM at_bats WHERE team_id = ?1 OR game_id IN ${gameFilter}`).bind(id).run();
+
+  // Challenges reference team directly and may also reference a game
+  await db.prepare(
+    `DELETE FROM challenges WHERE challenger_team_id = ?1 OR challenged_team_id = ?1 OR game_id IN ${gameFilter}`
+  ).bind(id).run();
+
+  // Team-scoped standings / base state
+  await db.prepare('DELETE FROM tournament_standings WHERE team_id = ?').bind(id).run();
+  await db.prepare('DELETE FROM base_state WHERE team_id = ?').bind(id).run();
+
+  // Now safe to delete games, then the team
+  await db.prepare('DELETE FROM games WHERE home_team_id = ? OR away_team_id = ?').bind(id, id).run();
+  await db.prepare('DELETE FROM teams WHERE id = ?').bind(id).run();
+
   return c.json({ success: true });
 });
