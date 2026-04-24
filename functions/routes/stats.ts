@@ -13,6 +13,7 @@ statsRoutes.get('/game-state/:teamId', authRequired, async (c) => {
   let query = `
     SELECT bs.*,
       t.name as team_name,
+      t.color as color,
       p1.display_name as first_base_name,
       p2.display_name as second_base_name,
       p3.display_name as third_base_name
