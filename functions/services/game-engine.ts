@@ -506,6 +506,30 @@ export async function replayGameEvents(
 
   // 8. Rebuild game_base_state from the final half-innings.
   await rebuildGameBaseStateFromHalves(db, gameId);
+
+  // 9. Resync series-level base_state totals for both teams. Replay doesn't
+  // touch base_state as it recreates at_bats, so without this the series
+  // leaderboard drifts relative to the at_bat records.
+  if (originalGame.series_id) {
+    for (const teamId of [originalGame.home_team_id, originalGame.away_team_id]) {
+      await db.prepare(
+        `UPDATE base_state
+         SET total_runs = COALESCE((
+               SELECT SUM(runs_scored) FROM at_bats
+               WHERE series_id = ? AND team_id = ? AND event_side = 'offense'
+             ), 0),
+             total_bases = COALESCE((
+               SELECT SUM(bases) FROM at_bats
+               WHERE series_id = ? AND team_id = ?
+             ), 0)
+         WHERE series_id = ? AND team_id = ?`
+      ).bind(
+        originalGame.series_id, teamId,
+        originalGame.series_id, teamId,
+        originalGame.series_id, teamId,
+      ).run();
+    }
+  }
 }
 
 async function rollbackTournamentStandingsInline(db: D1Database, tournamentId: number, game: any): Promise<void> {
