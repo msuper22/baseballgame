@@ -5,34 +5,50 @@ import { autoActivateDueGames, autoEndStaleGames } from '../services/game-engine
 
 export const statsRoutes = new Hono<{ Bindings: Env }>();
 
-// Get game state for a team (current diamond)
+// Get game state for a team (current diamond). Runners come ONLY from the
+// team's current half-inning while they are actively batting; an idle team
+// shows empty bases even if base_state still has stale runners from a prior
+// game.
 statsRoutes.get('/game-state/:teamId', authRequired, async (c) => {
   const teamId = c.req.param('teamId');
   const seriesId = c.req.query('series_id');
 
-  let query = `
-    SELECT bs.*,
+  const sid = seriesId
+    ? parseInt(seriesId)
+    : ((await c.env.DB.prepare(
+        'SELECT id FROM series WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1'
+      ).first<{ id: number }>())?.id);
+  if (!sid) return c.json({ error: 'No game state found' }, 404);
+
+  const state = await c.env.DB.prepare(`
+    SELECT
+      bs.series_id, bs.team_id, bs.total_runs, bs.total_bases,
       t.name as team_name,
       t.color as color,
+      hi.first_base  AS first_base,
+      hi.second_base AS second_base,
+      hi.third_base  AS third_base,
       p1.display_name as first_base_name,
       p2.display_name as second_base_name,
       p3.display_name as third_base_name
     FROM base_state bs
     JOIN teams t ON bs.team_id = t.id
-    LEFT JOIN players p1 ON bs.first_base = p1.id
-    LEFT JOIN players p2 ON bs.second_base = p2.id
-    LEFT JOIN players p3 ON bs.third_base = p3.id
-    WHERE bs.team_id = ?`;
-  const params: any[] = [teamId];
+    LEFT JOIN games g
+      ON g.series_id = bs.series_id
+      AND g.status IN ('active', 'extra_innings')
+      AND (g.home_team_id = bs.team_id OR g.away_team_id = bs.team_id)
+    LEFT JOIN half_innings hi
+      ON hi.game_id = g.id
+      AND hi.inning_number = g.current_inning
+      AND hi.half = g.current_half
+      AND hi.batting_team_id = bs.team_id
+      AND hi.is_complete = 0
+    LEFT JOIN players p1 ON hi.first_base = p1.id
+    LEFT JOIN players p2 ON hi.second_base = p2.id
+    LEFT JOIN players p3 ON hi.third_base = p3.id
+    WHERE bs.team_id = ? AND bs.series_id = ?
+  `).bind(teamId, sid).first();
 
-  if (seriesId) {
-    query += ' AND bs.series_id = ?';
-    params.push(seriesId);
-  } else {
-    query += ' AND bs.series_id = (SELECT id FROM series WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1)';
-  }
-
-  const state = await c.env.DB.prepare(query).bind(...params).first();
   if (!state) return c.json({ error: 'No game state found' }, 404);
   return c.json({ game_state: state });
 });
