@@ -277,6 +277,35 @@ async function loadPlayersTab(content) {
       });
     });
 
+    content.querySelectorAll('.reset-pw').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try {
+          const res = await api(`/players/${btn.dataset.id}/reset-link`, { method: 'POST' });
+          const pre = document.createElement('div');
+          pre.className = 'reset-link-modal';
+          pre.innerHTML = `
+            <div class="reset-link-card">
+              <h3>Reset link for ${btn.dataset.name}</h3>
+              <p class="form-hint">Share this link with the player. It expires in 24 hours and works once.</p>
+              <input type="text" readonly class="form-input" value="${res.url}">
+              <div style="display:flex;gap:0.5rem;margin-top:0.75rem">
+                <button class="btn btn-primary" id="reset-copy-btn">Copy Link</button>
+                <button class="btn" id="reset-close-btn">Close</button>
+              </div>
+            </div>`;
+          document.body.appendChild(pre);
+          pre.querySelector('input').select();
+          document.getElementById('reset-copy-btn').addEventListener('click', async () => {
+            try { await navigator.clipboard.writeText(res.url); showToast('Link copied!', 'success'); }
+            catch { pre.querySelector('input').select(); document.execCommand('copy'); showToast('Link copied!', 'success'); }
+          });
+          document.getElementById('reset-close-btn').addEventListener('click', () => pre.remove());
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      });
+    });
+
     content.querySelectorAll('.deactivate-player').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (!confirm('Deactivate this player?')) return;
@@ -320,6 +349,7 @@ function renderPlayerListView(players, teams) {
           <div class="admin-item-actions">
             ${renderTeamSelect(p, teams)}
             ${p.is_active ? `<button class="btn btn-sm toggle-captain" data-id="${p.id}" data-captain="${p.is_captain || 0}">${p.is_captain ? 'Remove Captain' : 'Make Captain'}</button>` : ''}
+            ${p.is_active ? `<button class="btn btn-sm reset-pw" data-id="${p.id}" data-name="${p.display_name}">Reset Password</button>` : ''}
             ${p.is_active
               ? `<button class="btn btn-sm btn-danger deactivate-player" data-id="${p.id}">Deactivate</button>`
               : `<button class="btn btn-sm btn-primary reactivate-player" data-id="${p.id}">Reactivate</button>`}

@@ -19,6 +19,7 @@ import { tournamentPage } from './pages/tournament.js';
 import { spectatorPage } from './pages/spectator.js';
 import { spectatorGamePage } from './pages/spectator-game.js';
 import { registerSpectatorPage } from './pages/register-spectator.js';
+import { resetPage } from './pages/reset.js';
 import { initTheme } from './theme.js';
 import { maybeShowOnboarding } from './components/onboarding.js';
 import { getUser } from './api.js';
@@ -47,6 +48,7 @@ route('/tournament/:id', tournamentPage);
 route('/spectator', spectatorPage);
 route('/spectator/:id', spectatorGamePage);
 route('/admin', adminPage);
+route('/reset/:token', resetPage);
 
 // Init
 renderNav();

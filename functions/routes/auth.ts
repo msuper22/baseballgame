@@ -144,6 +144,52 @@ authRoutes.post('/register-spectator', async (c) => {
   });
 });
 
+// Look up a reset token (public). Returns the player's display name if the
+// token is valid + unused + unexpired so the reset page can show "Resetting
+// password for X". Doesn't reveal anything for invalid tokens.
+authRoutes.get('/reset/:token', async (c) => {
+  const token = c.req.param('token');
+  const row = await c.env.DB.prepare(
+    `SELECT t.expires_at, t.used_at, p.display_name, p.username
+     FROM password_reset_tokens t
+     JOIN players p ON p.id = t.player_id
+     WHERE t.token = ? AND p.is_active = 1`
+  ).bind(token).first<any>();
+  if (!row) return c.json({ error: 'Invalid or expired link' }, 404);
+  if (row.used_at) return c.json({ error: 'This link has already been used' }, 400);
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    return c.json({ error: 'This link has expired' }, 400);
+  }
+  return c.json({ display_name: row.display_name, username: row.username });
+});
+
+// Consume a reset token to set a new password (public).
+authRoutes.post('/reset', async (c) => {
+  const { token, password } = await c.req.json();
+  if (!token || !password) return c.json({ error: 'Token and new password required' }, 400);
+  if (password.length < 4) return c.json({ error: 'Password must be at least 4 characters' }, 400);
+
+  const row = await c.env.DB.prepare(
+    `SELECT t.player_id, t.expires_at, t.used_at
+     FROM password_reset_tokens t
+     JOIN players p ON p.id = t.player_id
+     WHERE t.token = ? AND p.is_active = 1`
+  ).bind(token).first<any>();
+  if (!row) return c.json({ error: 'Invalid link' }, 404);
+  if (row.used_at) return c.json({ error: 'This link has already been used' }, 400);
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    return c.json({ error: 'This link has expired' }, 400);
+  }
+
+  const hashed = await hashPassword(password);
+  await c.env.DB.prepare('UPDATE players SET password = ? WHERE id = ?').bind(hashed, row.player_id).run();
+  await c.env.DB.prepare(
+    "UPDATE password_reset_tokens SET used_at = datetime('now') WHERE token = ?"
+  ).bind(token).run();
+
+  return c.json({ success: true });
+});
+
 // Get current user
 authRoutes.get('/me', authRequired, async (c) => {
   const user = c.get('user');

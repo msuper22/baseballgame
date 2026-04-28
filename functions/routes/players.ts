@@ -127,3 +127,34 @@ playerRoutes.delete('/:id', authRequired, adminRequired, async (c) => {
   await c.env.DB.prepare('UPDATE players SET is_active = 0 WHERE id = ?').bind(id).run();
   return c.json({ success: true });
 });
+
+// Generate a one-time password reset link for a player (admin only).
+// Token is 32 hex chars, valid for 24 hours, single-use. Admin shares the
+// returned URL with the player; the public reset page consumes it.
+playerRoutes.post('/:id/reset-link', authRequired, adminRequired, async (c) => {
+  const id = parseInt(c.req.param('id'));
+  const admin = c.get('user');
+
+  const player = await c.env.DB.prepare(
+    'SELECT id, display_name FROM players WHERE id = ? AND is_active = 1'
+  ).bind(id).first<{ id: number; display_name: string }>();
+  if (!player) return c.json({ error: 'Player not found or inactive' }, 404);
+
+  const buf = new Uint8Array(16);
+  crypto.getRandomValues(buf);
+  const token = Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
+
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  await c.env.DB.prepare(
+    'INSERT INTO password_reset_tokens (token, player_id, created_by, expires_at) VALUES (?, ?, ?, ?)'
+  ).bind(token, id, admin.sub, expiresAt).run();
+
+  const origin = new URL(c.req.url).origin;
+  return c.json({
+    token,
+    expires_at: expiresAt,
+    url: `${origin}/#/reset/${token}`,
+    player: { id: player.id, display_name: player.display_name },
+  });
+});
