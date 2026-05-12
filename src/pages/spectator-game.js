@@ -86,9 +86,11 @@ async function loadGameState(gameId) {
     // Diamond - show batting team's state
     const battingTeamName = game.current_half === 'top' ? game.away_team_name : game.home_team_name;
     const battingTeamId = game.current_half === 'top' ? game.away_team_id : game.home_team_id;
+    const battingTeamColor = game.current_half === 'top' ? game.away_team_color : game.home_team_color;
     const diamondState = {
       team_name: battingTeamName,
       team_id: battingTeamId,
+      color: battingTeamColor,
       total_runs: game.current_half === 'top' ? game.away_score : game.home_score,
       total_bases: 0,
       first_base_name: hi?.first_base_name || null,

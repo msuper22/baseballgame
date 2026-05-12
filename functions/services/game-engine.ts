@@ -604,7 +604,9 @@ export async function getGameStateWithNames(db: D1Database, gameId: number) {
   const game = await db.prepare(`
     SELECT g.*,
       ht.name as home_team_name,
-      at2.name as away_team_name
+      at2.name as away_team_name,
+      ht.color as home_team_color,
+      at2.color as away_team_color
     FROM games g
     JOIN teams ht ON g.home_team_id = ht.id
     JOIN teams at2 ON g.away_team_id = at2.id

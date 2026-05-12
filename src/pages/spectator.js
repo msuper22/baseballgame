@@ -91,6 +91,7 @@ async function loadGames() {
         renderDiamond(wrap, {
           team_id: bs.team_id,
           team_name: bs.team_name,
+          color: bs.color,
           total_runs: bs.total_runs,
           total_bases: bs.total_bases,
           first_base: showRunners ? bs.first_base : null,

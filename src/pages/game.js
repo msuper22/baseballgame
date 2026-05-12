@@ -160,6 +160,7 @@ async function loadGame(gameId) {
       renderDiamond(document.getElementById('offense-diamond-slot'), {
         team_id: offense.team_id,
         team_name: offense.team_name,
+        color: offense.color,
         total_runs: offense.total_runs,
         total_bases: offense.total_bases,
         first_base: offense.first_base,

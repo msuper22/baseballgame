@@ -23,7 +23,7 @@ spectatorRoutes.get('/games', authRequired, async (c) => {
 
   const placeholders = gameIds.map(() => '?').join(',');
   const baseStates = await c.env.DB.prepare(`
-    SELECT gbs.*, t.name as team_name,
+    SELECT gbs.*, t.name as team_name, t.color as color,
       p1.display_name as first_base_name,
       p2.display_name as second_base_name,
       p3.display_name as third_base_name
